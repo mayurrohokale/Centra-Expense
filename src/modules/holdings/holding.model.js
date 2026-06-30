@@ -2,7 +2,10 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
-export const INSTRUMENT_TYPES = ['mutual_fund', 'crypto', 'fd'];
+// mutual_fund / crypto / fd are the auto-syncable types (AA / CAS / market data).
+// stocks / gold / other are additionally available for MANUAL entries (assets we
+// can't auto-fetch) so users can track their whole portfolio in one place.
+export const INSTRUMENT_TYPES = ['mutual_fund', 'crypto', 'fd', 'stocks', 'gold', 'other'];
 
 /**
  * holdings — investment positions surfaced on the Invest tab.

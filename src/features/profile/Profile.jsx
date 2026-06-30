@@ -47,6 +47,17 @@ export default function Profile() {
   const salary = user?.salary;
   const hasSalary = salary?.amount > 0 && salary?.payDay;
 
+  // In-app daily reminder preferences (persisted via PATCH /api/auth/me).
+  const reminderEnabled = user?.reminderEnabled === true;
+  const reminderTime = user?.reminderTime || '21:00';
+  const [savingReminder, setSavingReminder] = useState(false);
+  async function saveReminder(patch) {
+    if (savingReminder) return;
+    setSavingReminder(true);
+    try { await api.updateProfile(patch); await refreshUser(); }
+    catch { /* surfaced by no-op; keep UI responsive */ } finally { setSavingReminder(false); }
+  }
+
   const list = accounts.data || [];
   const banks = list.filter((a) => a.type === 'bank');
   const cash = list.filter((a) => a.type === 'cash');
@@ -130,6 +141,36 @@ export default function Profile() {
           <span style={{ fontFamily: FONT.inter, fontWeight: 800, fontSize: 13, color: COLOR.purple }}>Add ›</span>
         </div>
       )}
+
+      {/* Preferences — in-app reminder */}
+      <div style={{ margin: '24px 4px 12px', ...sectionTitle }}>🔔 Reminders</div>
+      <div style={{ borderRadius: 22, padding: '16px 18px', ...CARD }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 13, background: '#FFF4DB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19 }}>📝</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={rowLabel}>Daily reminder to add transactions</div>
+            <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft, marginTop: 1 }}>An in-app nudge if you haven't logged anything</div>
+          </div>
+          {/* Toggle */}
+          <div
+            onClick={() => saveReminder({ reminderEnabled: !reminderEnabled })}
+            style={{ width: 46, height: 28, borderRadius: 16, flexShrink: 0, background: reminderEnabled ? '#2BC4B0' : '#e4dff0', position: 'relative', cursor: savingReminder ? 'default' : 'pointer', transition: 'background .18s', opacity: savingReminder ? 0.7 : 1 }}
+          >
+            <div style={{ position: 'absolute', top: 3, left: reminderEnabled ? 21 : 3, width: 22, height: 22, borderRadius: '50%', background: '#fff', boxShadow: '0 2px 6px rgba(0,0,0,.18)', transition: 'left .18s' }} />
+          </div>
+        </div>
+        {reminderEnabled && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, paddingTop: 14, borderTop: '1px solid #f4effa' }}>
+            <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 12.5, color: COLOR.muted }}>⏰ Remind me at</span>
+            <input
+              type="time"
+              value={reminderTime}
+              onChange={(e) => saveReminder({ reminderTime: e.target.value })}
+              style={{ flex: 1, padding: '9px 12px', borderRadius: 13, border: '1.5px solid #f1ecf6', background: '#fff', fontFamily: FONT.inter, fontWeight: 700, fontSize: 13, color: COLOR.ink, outline: 'none' }}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Accounts */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '24px 4px 12px' }}>

@@ -114,17 +114,7 @@ export default function StocksBoard({ onOpen }) {
         )}
       </div>
 
-      {/* Private giants note */}
-      {privateGiants.length > 0 && (
-        <div style={{ marginTop: 12, borderRadius: 18, padding: '13px 16px', background: '#FBF8F4', border: '1.5px dashed #e4d8fb' }}>
-          <div style={{ fontFamily: FONT.inter, fontWeight: 800, fontSize: 11, color: COLOR.mutedSoft, letterSpacing: '.4px' }}>NOT PUBLICLY TRADED</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 9 }}>
-            {privateGiants.map((p) => (
-              <span key={p.name} style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11.5, color: COLOR.muted, background: '#fff', border: '1.5px solid #f1ecf6', borderRadius: 12, padding: '5px 11px' }}>{p.name} · {p.note}</span>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* (Removed the "not publicly traded" private-giants note per product decision.) */}
     </>
   );
 }

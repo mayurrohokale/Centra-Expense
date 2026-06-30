@@ -1,0 +1,18 @@
+---
+name: reminder-and-manual-investments
+description: In-app daily reminder banner, manual investments CRUD, GoalsSkeleton, MF detail (chart+SIP), removed private-giants box
+metadata:
+  type: project
+---
+
+Built 2026-06-30 (dev server running; NO build run).
+
+**IN-APP DAILY REMINDER (Item 4).** IN-APP only (no push/email). User model gained `reminderEnabled` (Bool, default false) + `reminderTime` ("HH:MM", default "21:00"); PATCH /api/auth/me accepts both (zod regex for time); user.service.updateProfile whitelists them. Profile.jsx has a "🔔 Reminders" section: a custom toggle + a time input (saves immediately via api.updateProfile + refreshUser). `src/common/ui/ReminderBanner.jsx` shows a dismissible amber banner when ALL of: reminderEnabled, now ≥ reminderTime (local), `summary.addedToday === 0` (from getSummary), and not dismissed today. Dismiss persists to localStorage key `centra.reminderDismissed.<userId>.<YYYY-MM-DD>` (per-day). "Add now" → routes to txns tab. Wired in `app/page.jsx` above the tab content (hidden on Reports/Profile/onboarding).
+
+**MANUAL INVESTMENTS (Item 3).** Reused the existing Holding model (already had `source:'manual'`). `INSTRUMENT_TYPES` extended: mutual_fund/crypto/fd + stocks/gold/other (manual-only types). holding.service: createHolding defaults currentValue→investedValue when omitted; new `updateHolding`/`deleteHolding` (both BLOCK non-manual via 400). Routes: POST schema accepts new types + optional currentValue; new `PATCH/DELETE /api/holdings/[id]`; GET accepts `?source=`. api client: getHoldings(params), updateHolding, deleteHolding. Investments.jsx: synced sections now filter `source!=='manual'`; a dedicated "✍️ Manual investments" section lists ALL manual holdings (type pill + ✍️ Manual badge + invested/current/gain) with Edit/Delete + empty state + in-app delete modal. AddHoldingSheet rewritten to create OR edit (pass `holding` prop) with 6 type chips + optional current value. NOTE: manual stocks/gold/other DO count in portfolio current/invested totals (getPortfolio sums all) but are NOT in the 3-type allocation donut (mutual_fund/crypto/fd only) — documented choice.
+
+**GoalsSkeleton (Item 2).** Added `SkeletonGoalCard` + `GoalsSkeleton({count})` to `src/common/ui/Skeleton.jsx` (mirrors goal card: icon circle, title+amount lines, progress bar, 3 buttons). Wired into GoalsSection.jsx: shows while `goals.loading && !goals.data`; cards + suggestions hidden during that first load.
+
+**TRENDING MF DETAIL (Item C).** mfapi.client.js gained `getFundHistory(schemeCode, range)` using `https://api.mfapi.in/mf/{schemeCode}` (full NAV history) → meta + latest NAV/date + range-sliced points (oldest→newest {t,c}) + windowChangePct/high/low + trailing return1y/3y/5y (reuses returnOver/parseMfDate; ranges 1M/6M/1Y/3Y/MAX via FUND_RANGE_DAYS, 1h cache, serve-stale-on-error). Route `GET /api/market/funds/[schemeCode]/history?range=`; api.getFundHistory. New `src/features/market/FundDetail.jsx`: inline-SVG NAV area chart (real date axis), range tabs, latest NAV+date, 1Y/3Y/5Y return cards, and a pure-client SIP CALCULATOR (monthly amount + years + editable expected-return defaulting to the fund's 3Y CAGR; FV-of-series formula → invested/value/gain). TrendingFunds.jsx cards now clickable via `onOpen(schemeCode,name)`; Discover.jsx holds `fund` state and renders FundDetail (back returns). Loading shows inline text; graceful failure note.
+
+**REMOVED "not publicly traded" box (Item B).** Deleted the PRIVATE_GIANTS "NOT PUBLICLY TRADED" notice block from `StocksBoard.jsx` UI (the `privateGiants` data/route plumbing stays but is no longer rendered).

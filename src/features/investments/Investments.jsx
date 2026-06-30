@@ -16,6 +16,12 @@ const SECTIONS = [
   { type: 'fd', emoji: '🏦', title: 'Fixed Deposits' },
 ];
 
+// Friendly labels for instrument types (used in the manual investments list).
+const TYPE_LABEL = {
+  mutual_fund: 'Mutual Fund', crypto: 'Crypto', fd: 'Fixed Deposit',
+  stocks: 'Stocks', gold: 'Gold', other: 'Other',
+};
+
 const ALLOC_LEGEND = [
   { key: 'mutual_fund', label: 'Mutual Funds', color: '#34D39E' },
   { key: 'fd', label: 'Fixed Dep.', color: '#FFD166' },
@@ -46,6 +52,9 @@ function HoldingRow({ h }) {
 export default function Investments() {
   const [view, setView] = useState('list'); // list | consent
   const [addOpen, setAddOpen] = useState(false);
+  const [editHolding, setEditHolding] = useState(null); // manual holding being edited
+  const [delHolding, setDelHolding] = useState(null); // manual holding pending delete
+  const [deleting, setDeleting] = useState(false);
   const [casOpen, setCasOpen] = useState(false);
   const holdings = useApi(api.getHoldings, []);
   const portfolio = useApi(api.getPortfolio, []);
@@ -61,6 +70,21 @@ export default function Investments() {
 
   const all = holdings.data || [];
   const port = portfolio.data || { current: 0, invested: 0, returns: 0, allocation: {} };
+  const manual = all.filter((h) => h.source === 'manual');
+  const manualInvested = manual.reduce((s, h) => s + h.investedValue, 0);
+  const manualCurrent = manual.reduce((s, h) => s + h.currentValue, 0);
+
+  const refreshHoldings = () => { holdings.refetch(); portfolio.refetch(); };
+
+  async function confirmDeleteHolding() {
+    if (!delHolding || deleting) return;
+    setDeleting(true);
+    try {
+      await api.deleteHolding(delHolding._id);
+      setDelHolding(null);
+      refreshHoldings();
+    } catch { /* keep modal open */ } finally { setDeleting(false); }
+  }
 
   return (
     <div style={{ padding: '8px 18px 24px' }}>
@@ -114,9 +138,9 @@ export default function Investments() {
         <span style={{ fontSize: 16 }}>🔗</span><span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: '#fff' }}>Link an account</span>
       </div>
 
-      {/* holdings sections */}
+      {/* holdings sections — auto-synced (AA / CAS / market) holdings grouped by type */}
       {SECTIONS.map((sec) => {
-        const items = all.filter((h) => h.instrumentType === sec.type);
+        const items = all.filter((h) => h.instrumentType === sec.type && h.source !== 'manual');
         if (!items.length) return null;
         const total = items.reduce((s, h) => s + h.currentValue, 0);
         return (
@@ -133,6 +157,59 @@ export default function Investments() {
         );
       })}
 
+      {/* MANUAL INVESTMENTS — user-entered holdings (any type), editable + deletable */}
+      <div style={{ marginTop: 26 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 4px 12px' }}>
+          <span style={{ fontSize: 18 }}>✍️</span>
+          <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 17, color: COLOR.ink, letterSpacing: '-.2px' }}>Manual investments</span>
+          {manual.length > 0 && <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.mutedSoft, marginLeft: 'auto', letterSpacing: '-.2px' }}>{inr(manualCurrent)}</span>}
+        </div>
+
+        {manual.length === 0 ? (
+          <div style={{ borderRadius: 22, padding: '22px 18px', background: '#fff', border: '1.5px dashed #e4d8fb', textAlign: 'center' }}>
+            <div style={{ fontSize: 30 }}>✍️</div>
+            <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink, marginTop: 7 }}>No manual investments yet</div>
+            <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 12, color: COLOR.mutedSoft, marginTop: 5, lineHeight: 1.5 }}>Add stocks, gold, FDs or anything you track yourself.</div>
+            <div onClick={() => { setEditHolding(null); setAddOpen(true); }} style={{ marginTop: 14, display: 'inline-block', padding: '10px 18px', borderRadius: 14, background: 'linear-gradient(135deg,#6C5CE7,#A78BFA)', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 13, color: '#fff', cursor: 'pointer' }}>+ Add investment</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+            {manual.map((h) => {
+              const hasCurrent = h.currentValue != null && h.currentValue !== h.investedValue;
+              const pl = h.currentValue - h.investedValue;
+              const up = pl >= 0;
+              const plColor = up ? '#16a34a' : '#FF6B5E';
+              return (
+                <div key={h._id} style={{ borderRadius: 22, padding: '15px 17px', background: '#fff', boxShadow: '0 10px 22px rgba(90,70,130,.07)', border: '1.5px solid #f1ecf6' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                    <div style={{ width: 42, height: 42, borderRadius: 13, background: h.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 14, color: '#fff' }}>{h.tag}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                        <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 9.5, letterSpacing: '.3px', padding: '2px 8px', borderRadius: 10, background: '#F2ECFC', color: '#7a5fc0' }}>{TYPE_LABEL[h.instrumentType] || 'Other'}</span>
+                        <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 9.5, letterSpacing: '.3px', padding: '2px 8px', borderRadius: 10, background: '#FFF4DB', color: '#9b7d12' }}>✍️ Manual</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink, letterSpacing: '-.3px' }}>{inr(h.currentValue)}</div>
+                      {hasCurrent && <div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11, color: plColor }}>{up ? '+' : '-'}{inr(Math.abs(pl))}</div>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTop: '1.5px dashed #f1ecf6' }}>
+                    <span style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft }}>Invested {inr(h.investedValue)}</span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span onClick={() => { setEditHolding(h); setAddOpen(true); }} style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 11.5, color: '#7a5fc0', cursor: 'pointer' }}>Edit</span>
+                      <span onClick={() => setDelHolding(h)} style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 11.5, color: COLOR.expense, cursor: 'pointer' }}>Delete</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <div onClick={() => { setEditHolding(null); setAddOpen(true); }} style={{ textAlign: 'center', padding: '12px 0', borderRadius: 14, background: '#fff', border: '1.5px dashed #ddd4ea', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#7a5fc0', cursor: 'pointer' }}>+ Add investment</div>
+          </div>
+        )}
+      </div>
+
       {/* secondary options */}
       <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 11 }}>
         <div onClick={() => setCasOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 20, padding: '15px 16px', background: '#fff', border: '1.5px dashed #ddd4ea', cursor: 'pointer' }}>
@@ -147,7 +224,18 @@ export default function Investments() {
         </div>
       </div>
 
-      <AddHoldingSheet open={addOpen} onClose={() => setAddOpen(false)} onDone={() => { holdings.refetch(); portfolio.refetch(); }} />
+      <AddHoldingSheet open={addOpen} holding={editHolding} onClose={() => { setAddOpen(false); setEditHolding(null); }} onDone={refreshHoldings} />
+
+      {/* Delete manual holding confirmation */}
+      <Sheet open={!!delHolding} onClose={() => (deleting ? null : setDelHolding(null))}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 40 }}>🗑️</div>
+          <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 18, color: COLOR.ink, marginTop: 10 }}>Delete {delHolding?.name}?</div>
+          <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 12.5, color: COLOR.mutedSoft, marginTop: 6, lineHeight: 1.5 }}>This removes the manual investment from your portfolio.</div>
+        </div>
+        <div onClick={deleting ? undefined : confirmDeleteHolding} style={{ marginTop: 20, padding: 15, borderRadius: 18, background: 'linear-gradient(135deg,#FF8A7A,#FF6B5E)', textAlign: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: '#fff', cursor: 'pointer', opacity: deleting ? 0.7 : 1 }}>{deleting ? 'Deleting…' : 'Delete'}</div>
+        <div onClick={() => (deleting ? null : setDelHolding(null))} style={{ marginTop: 9, textAlign: 'center', fontFamily: FONT.inter, fontWeight: 700, fontSize: 13, color: COLOR.mutedSoft, padding: 6, cursor: 'pointer' }}>Cancel</div>
+      </Sheet>
 
       <Sheet open={casOpen} onClose={() => setCasOpen(false)}>
         <div style={{ textAlign: 'center', padding: '4px 6px 6px' }}>

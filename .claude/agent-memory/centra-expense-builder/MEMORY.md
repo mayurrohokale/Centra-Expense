@@ -7,3 +7,5 @@
 - [Live Market Data](live-market-data.md) — Discover crypto/stocks/MF now realtime from public APIs (CoinGecko/Yahoo/MFAPI); + dev `.next` build gotcha
 - [Balance & Skeletons](balance-and-skeletons.md) — per-bank balance (email-authoritative + computed, idempotent on confirm via balanceApplied) + app-wide Skeleton loaders
 - [Reports Feature](reports-feature.md) — GET /api/reports analytics aggregation + Reports.jsx (period/category/merchants/trend/account); reached from Home, no 6th nav tab
+- [Taxonomy, Transfers & Recurring](taxonomy-transfers-recurring.md) — expanded category set + per-user backfill, self-transfers (excluded from reports), monthly-recurring flag/filter
+- [Reminder & Manual Investments](reminder-and-manual-investments.md) — in-app daily reminder banner, manual-holdings CRUD, GoalsSkeleton, MF detail (NAV chart+SIP calc), removed private-giants box

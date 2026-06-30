@@ -155,13 +155,25 @@ export async function createTransaction(userId, data) {
 
 /** Money in / out / net for the current month-style summary card. */
 export async function getSummary(userId) {
-  const rows = await Transaction.aggregate([
-    { $match: { userId, status: 'confirmed' } },
-    { $group: { _id: '$direction', total: { $sum: '$amount' } } },
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+
+  const [rows, addedToday] = await Promise.all([
+    Transaction.aggregate([
+      { $match: { userId, status: 'confirmed' } },
+      { $group: { _id: '$direction', total: { $sum: '$amount' } } },
+    ]),
+    // Any transaction logged today (added or dated today, any status) — powers
+    // the in-app "add today's transactions" reminder so it doesn't nag once the
+    // user has already logged something.
+    Transaction.countDocuments({
+      userId,
+      $or: [{ createdAt: { $gte: dayStart } }, { occurredAt: { $gte: dayStart } }],
+    }),
   ]);
   const income = rows.find((r) => r._id === 'credit')?.total || 0;
   const expenses = rows.find((r) => r._id === 'debit')?.total || 0;
-  return { income, expenses, savings: income - expenses };
+  return { income, expenses, savings: income - expenses, addedToday };
 }
 
 /** Spend grouped by category for the "Where it went" bar chart. */

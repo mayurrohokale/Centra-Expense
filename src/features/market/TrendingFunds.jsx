@@ -5,7 +5,8 @@ import { FONT, COLOR } from '../../common/theme/tokens.js';
 import LiveBadge from './LiveBadge.jsx';
 
 // Trending mutual funds with live-computed 1Y / 3Y returns (MFAPI).
-export default function TrendingFunds() {
+// Tapping a card opens the fund detail (chart + returns + SIP calc) via onOpen.
+export default function TrendingFunds({ onOpen }) {
   const { data, loading } = useApi(api.getTrendingFunds, []);
   const funds = data || [];
 
@@ -27,7 +28,7 @@ export default function TrendingFunds() {
             const headlineLabel = m.return3y != null ? '3Y CAGR' : '1Y return';
             const up = (headline ?? 0) >= 0;
             return (
-              <div key={m.schemeCode} style={{ borderRadius: 22, padding: 17, background: '#fff', boxShadow: '0 10px 22px rgba(90,70,130,.07)', border: '1.5px solid #f1ecf6' }}>
+              <div key={m.schemeCode} onClick={() => onOpen?.(m.schemeCode, m.name)} style={{ borderRadius: 22, padding: 17, background: '#fff', boxShadow: '0 10px 22px rgba(90,70,130,.07)', border: '1.5px solid #f1ecf6', cursor: onOpen ? 'pointer' : 'default' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink, lineHeight: 1.3 }}>{m.name}</div>

@@ -22,7 +22,7 @@ export const GET = handle(async (req) => {
 const createSchema = z.object({
   accountId: z.string().optional(),
   source: z.enum(['email', 'aa_sync', 'cash', 'manual']),
-  direction: z.enum(['debit', 'credit']),
+  direction: z.enum(['debit', 'credit', 'transfer']),
   amount: z.number().positive(),
   merchant: z.string().min(1),
   categoryKey: z.string().optional(),
@@ -34,6 +34,10 @@ const createSchema = z.object({
   status: z.enum(['confirmed', 'needs_review']).optional(),
   // Goal funding: links this contribution to a savings goal (draft until confirmed).
   goalId: z.string().optional(),
+  // Self-transfer: destination account (direction must be 'transfer').
+  toAccountId: z.string().optional(),
+}).refine((b) => b.direction !== 'transfer' || (b.accountId && b.toAccountId && b.accountId !== b.toAccountId), {
+  message: 'A transfer needs distinct from and to accounts.',
 });
 
 export const POST = handle(async (req) => {
@@ -46,10 +50,16 @@ export const POST = handle(async (req) => {
     const acct = await Account.findOne({ _id: body.accountId, userId: user._id }).lean();
     accountName = acct?.name || '';
   }
+  let toAccountName = '';
+  if (body.toAccountId) {
+    const toAcct = await Account.findOne({ _id: body.toAccountId, userId: user._id }).lean();
+    toAccountName = toAcct?.name || '';
+  }
 
   const { transaction, deduped } = await service.createTransaction(user._id, {
     ...body,
     accountName,
+    toAccountName,
     occurredAt: body.occurredAt ? new Date(body.occurredAt) : new Date(),
   });
 

@@ -25,6 +25,9 @@ const patchSchema = z.object({
       payDay: z.number().int().min(1).max(31),
     })
     .optional(),
+  reminderEnabled: z.boolean().optional(),
+  // 24h HH:MM, e.g. "21:00".
+  reminderTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use HH:MM (24h)').optional(),
 });
 
 export const PATCH = handle(async (req) => {

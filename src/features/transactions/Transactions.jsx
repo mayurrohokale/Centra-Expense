@@ -39,6 +39,7 @@ export default function Transactions() {
   const [delId, setDelId] = useState(''); // draft id pending inline delete confirm
   const [delTxn, setDelTxn] = useState(null); // confirmed txn pending modal delete confirm
   const [deleting, setDeleting] = useState(false);
+  const [recurringOnly, setRecurringOnly] = useState(false); // "Monthly bills" filter
 
   const summary = useApi(api.getSummary, []);
   const review = useApi(api.getNeedsReview, []);
@@ -49,7 +50,11 @@ export default function Transactions() {
     [segment, source, search]
   );
 
-  const groups = useMemo(() => groupByDate(txns.data || []), [txns.data]);
+  const visibleTxns = useMemo(
+    () => (recurringOnly ? (txns.data || []).filter((t) => t.recurring) : (txns.data || [])),
+    [txns.data, recurringOnly]
+  );
+  const groups = useMemo(() => groupByDate(visibleTxns), [visibleTxns]);
 
   const loading = summary.loading || review.loading || accounts.loading;
   const error = summary.error || review.error || accounts.error || txns.error;
@@ -97,11 +102,16 @@ export default function Transactions() {
     if (tx.status !== 'confirmed' || !tx.balanceApplied) {
       return 'This draft hasn’t affected any balance yet.';
     }
+    if (tx.direction === 'transfer') {
+      return `This will undo the transfer — refund ${inr(tx.amount)} to ${tx.accountName || 'the source'} and remove it from ${tx.toAccountName || 'the destination'}.`;
+    }
     const where = tx.accountName || 'the account';
     return tx.direction === 'debit'
       ? `This will add ${inr(tx.amount)} back to ${where}.`
       : `This will subtract ${inr(tx.amount)} from ${where}.`;
   }
+  // Amount label for the delete modal (transfers are neutral, not signed).
+  const delAmountLabel = (tx) => (tx?.direction === 'transfer' ? inr(tx.amount) : signedInr(tx?.amount || 0, tx?.direction));
 
   const segStyle = (active) => ({
     flex: 1, textAlign: 'center', padding: 9, borderRadius: 13, cursor: 'pointer',
@@ -142,6 +152,7 @@ export default function Transactions() {
         <div onClick={() => setTxnSheet('expense')} style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 16, background: 'linear-gradient(135deg,#FF8A7A,#FF6B5E)', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer', boxShadow: '0 8px 18px rgba(255,107,94,.28)' }}>💸 Expense</div>
         <div onClick={() => setTxnSheet('income')} style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 16, background: 'linear-gradient(135deg,#34D39E,#1FAE63)', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer', boxShadow: '0 8px 18px rgba(31,174,99,.28)' }}>💰 Income</div>
         <div onClick={() => setCashOpen(true)} style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 16, background: '#fff', border: '1.5px solid #f1ecf6', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.ink, cursor: 'pointer' }}>👛 Cash</div>
+        <div onClick={() => setTxnSheet('transfer')} style={{ flex: 1, textAlign: 'center', padding: '12px 8px', borderRadius: 16, background: '#fff', border: '1.5px solid #f1ecf6', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.ink, cursor: 'pointer' }}>🔁 Transfer</div>
       </div>
 
       {/* search */}
@@ -155,9 +166,10 @@ export default function Transactions() {
         {SEGMENTS.map(([k, l]) => (<div key={k} onClick={() => setSegment(k)} style={segStyle(segment === k)}>{l}</div>))}
       </div>
 
-      {/* source chips */}
+      {/* source chips + monthly-recurring filter */}
       <div style={{ display: 'flex', gap: 8, overflowX: 'auto', margin: '13px -18px 2px', padding: '2px 18px 6px' }}>
         {SOURCE_CHIPS.map(([k, l]) => (<div key={k} onClick={() => setSource(k)} style={chipStyle(source === k)}>{l}</div>))}
+        <div onClick={() => setRecurringOnly((v) => !v)} style={chipStyle(recurringOnly)}>🔁 Monthly bills</div>
       </div>
 
       {/* upcoming salary — driven by the user's profile salary setting */}
@@ -195,8 +207,8 @@ export default function Transactions() {
               <div key={r._id} style={{ borderRadius: 22, padding: '15px 17px', background: 'linear-gradient(150deg,#F8F3FF,#FBF7FF)', border: '1.5px solid #e4d8fb', boxShadow: '0 8px 20px rgba(167,139,250,.12)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 42, height: 42, borderRadius: 14, background: r.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{r.icon}</div>
-                  <div style={{ flex: 1 }}><div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink }}>{r.merchant}</div><div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: '#8b5cf6', marginTop: 1 }}>📧 from {r.accountName} email · {r.dateLabel}</div></div>
-                  <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: '#FF6B5E', letterSpacing: '-.3px' }}>{signedInr(r.amount, r.direction)}</div>
+                  <div style={{ flex: 1 }}><div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink }}>{r.merchant}</div><div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: '#8b5cf6', marginTop: 1 }}>{r.direction === 'transfer' ? `🔁 transfer · ${r.dateLabel}` : r.source === 'email' ? `📧 from ${r.accountName} email · ${r.dateLabel}` : `✍️ ${r.accountName || 'manual'} · ${r.dateLabel}`}</div></div>
+                  <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: r.direction === 'transfer' ? COLOR.ink : '#FF6B5E', letterSpacing: '-.3px' }}>{r.direction === 'transfer' ? inr(r.amount) : signedInr(r.amount, r.direction)}</div>
                 </div>
                 {/* Drafts only — delete control + inline confirm (no browser dialog). */}
                 {delId === r._id ? (
@@ -227,11 +239,18 @@ export default function Transactions() {
               <div key={tx._id} onClick={() => setPicker({ txn: tx, confirmOnPick: false })} style={{ borderRadius: 22, background: '#fff', boxShadow: '0 10px 22px rgba(90,70,130,.06)', border: '1.5px solid #f1ecf6', padding: '14px 16px', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                   <div style={{ width: 42, height: 42, borderRadius: 14, background: tx.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{tx.icon}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink }}>{tx.merchant}</div>
-                    <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft }}>{tx.accountName}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tx.merchant}</span>
+                      {tx.recurring && <span title="Monthly recurring" style={{ flexShrink: 0, fontFamily: FONT.inter, fontWeight: 800, fontSize: 9, letterSpacing: '.3px', padding: '2px 7px', borderRadius: 9, background: '#F2ECFC', color: '#7a5fc0' }}>🔁 MONTHLY</span>}
+                    </div>
+                    <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft }}>{tx.direction === 'transfer' ? 'Transfer' : tx.accountName}</div>
                   </div>
-                  <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: tx.direction === 'credit' ? '#16a34a' : '#FF6B5E', letterSpacing: '-.3px' }}>{signedInr(tx.amount, tx.direction)}</div>
+                  {tx.direction === 'transfer' ? (
+                    <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink, letterSpacing: '-.3px' }}>{inr(tx.amount)}</div>
+                  ) : (
+                    <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: tx.direction === 'credit' ? '#16a34a' : '#FF6B5E', letterSpacing: '-.3px' }}>{signedInr(tx.amount, tx.direction)}</div>
+                  )}
                 </div>
                 <div style={{ marginTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <SourceBadge source={tx.source} accountName={tx.accountName} />
@@ -287,7 +306,7 @@ export default function Transactions() {
           <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 18, color: COLOR.ink, marginTop: 10 }}>Delete this transaction?</div>
           {delTxn && (
             <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 12.5, color: COLOR.mutedSoft, marginTop: 6, lineHeight: 1.5 }}>
-              <span style={{ color: COLOR.ink, fontWeight: 700 }}>{delTxn.merchant}</span> · {signedInr(delTxn.amount, delTxn.direction)}
+              <span style={{ color: COLOR.ink, fontWeight: 700 }}>{delTxn.merchant}</span> · {delAmountLabel(delTxn)}
               <br />{reversalNote(delTxn)}
             </div>
           )}

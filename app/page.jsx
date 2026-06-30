@@ -4,6 +4,7 @@ import MobileFrame from '@/common/ui/MobileFrame';
 import Header from '@/common/ui/Header';
 import Logo from '@/common/ui/Logo';
 import BottomNav from '@/common/ui/BottomNav';
+import ReminderBanner from '@/common/ui/ReminderBanner';
 import Dashboard from '@/features/dashboard/Dashboard';
 import Transactions from '@/features/transactions/Transactions';
 import EmailConnect from '@/features/email-connect/EmailConnect';
@@ -119,6 +120,8 @@ export default function Page() {
             <Profile />
           ) : (
             <>
+              {/* In-app end-of-day reminder (only on the main tabs, not Reports). */}
+              {tab !== 'reports' && <ReminderBanner onAdd={() => setTab('txns')} />}
               {tab === 'home' && <Dashboard onTab={setTab} />}
               {tab === 'txns' && <Transactions />}
               {tab === 'email' && <EmailConnect />}

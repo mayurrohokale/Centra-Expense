@@ -12,6 +12,7 @@ import StocksBoard from '../market/StocksBoard.jsx';
 import TrendingFunds from '../market/TrendingFunds.jsx';
 import InstrumentDetail from '../market/InstrumentDetail.jsx';
 import CryptoDetail from '../market/CryptoDetail.jsx';
+import FundDetail from '../market/FundDetail.jsx';
 
 // A Yahoo-style crypto symbol looks like "BTC-USD"; search results also pass a
 // type hint. Either signal routes the instrument to the CoinGecko crypto chart.
@@ -24,10 +25,17 @@ export default function Discover() {
   const [detail, setDetail] = useState(null); // { symbol, name, crypto } | null
   const openInstrument = (symbol, name, type) =>
     setDetail({ symbol, name, crypto: isCryptoInstrument(symbol, type) });
+  // Selected trending mutual fund → renders the fund detail (chart + SIP calc).
+  const [fund, setFund] = useState(null); // { schemeCode, name } | null
+  const openFund = (schemeCode, name) => setFund({ schemeCode, name });
 
   // Curated FD rates still come from the discover endpoint (no public FD API);
   // crypto/stocks/funds are now live from public APIs in their own components.
   const { data, loading, error, refetch } = useApi(api.getDiscover, []);
+
+  if (fund) {
+    return <FundDetail schemeCode={fund.schemeCode} name={fund.name} onBack={() => setFund(null)} />;
+  }
 
   if (detail) {
     return detail.crypto
@@ -53,8 +61,8 @@ export default function Discover() {
       {/* live stocks: Indian + global giants + search (Yahoo Finance) */}
       <StocksBoard onOpen={openInstrument} />
 
-      {/* trending mutual funds with live returns (MFAPI) */}
-      <TrendingFunds />
+      {/* trending mutual funds with live returns (MFAPI) → tap for detail */}
+      <TrendingFunds onOpen={openFund} />
 
       {/* FD rates — curated research (no public FD API) */}
       <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 17, color: COLOR.ink, margin: '26px 4px 13px', letterSpacing: '-.2px' }}>🏦 Best FD rates</div>

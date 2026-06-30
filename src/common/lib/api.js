@@ -56,9 +56,15 @@ export const api = {
   deleteTransaction: (id) => request(`/transactions/${id}`, { method: 'DELETE' }),
 
   // holdings
-  getHoldings: () => request('/holdings'),
+  getHoldings: (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v));
+    const q = qs.toString();
+    return request(`/holdings${q ? `?${q}` : ''}`);
+  },
   getPortfolio: () => request('/holdings/portfolio'),
   createHolding: (body) => request('/holdings', { method: 'POST', body: JSON.stringify(body) }),
+  updateHolding: (id, patch) => request(`/holdings/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteHolding: (id) => request(`/holdings/${id}`, { method: 'DELETE' }),
 
   // connections
   getConnections: () => request('/connections'),
@@ -99,4 +105,5 @@ export const api = {
   getStockQuote: (symbol) => request(`/market/stocks/search?symbol=${encodeURIComponent(symbol)}`),
   getStockHistory: (symbol, range = '1M') => request(`/market/stocks/history?symbol=${encodeURIComponent(symbol)}&range=${encodeURIComponent(range)}`),
   getTrendingFunds: () => request('/market/funds/trending'),
+  getFundHistory: (schemeCode, range = '1Y') => request(`/market/funds/${encodeURIComponent(schemeCode)}/history?range=${encodeURIComponent(range)}`),
 };

@@ -5,6 +5,7 @@ import { useApi } from '../../common/hooks/useApi.js';
 import { FONT, COLOR } from '../../common/theme/tokens.js';
 import { inr } from '../../common/lib/format.js';
 import { GOAL_SUGGESTIONS } from '../../modules/goals/goalThemes.js';
+import { GoalsSkeleton } from '../../common/ui/Skeleton.jsx';
 import Sheet from '../../common/ui/Sheet.jsx';
 import GoalSheet from './GoalSheet.jsx';
 import ContributeSheet from './ContributeSheet.jsx';
@@ -42,7 +43,11 @@ export default function GoalsSection() {
         <div onClick={() => setEditor({ open: true, goal: null, prefill: null })} style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 12.5, color: COLOR.purple, cursor: 'pointer' }}>+ New goal</div>
       </div>
 
+      {/* Loading skeleton (first load, before any data) */}
+      {goals.loading && !goals.data && <GoalsSkeleton count={3} />}
+
       {/* Goal cards */}
+      {!(goals.loading && !goals.data) && (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
         {list.map((g) => {
           const pct = pctOf(g);
@@ -69,6 +74,7 @@ export default function GoalsSection() {
           );
         })}
       </div>
+      )}
 
       {/* Empty state */}
       {!goals.loading && list.length === 0 && (
@@ -80,7 +86,7 @@ export default function GoalsSection() {
       )}
 
       {/* Quick-add suggestions */}
-      {suggestions.length > 0 && (
+      {!(goals.loading && !goals.data) && suggestions.length > 0 && (
         <>
           <div style={{ fontFamily: FONT.inter, fontWeight: 800, fontSize: 11.5, color: COLOR.mutedSoft, letterSpacing: '.5px', margin: '18px 4px 11px' }}>SUGGESTED · TAP TO ADD</div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', margin: '0 -18px', padding: '2px 18px 6px' }}>

@@ -3,7 +3,10 @@ import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 export const TX_SOURCES = ['email', 'aa_sync', 'cash', 'manual'];
-export const TX_DIRECTIONS = ['debit', 'credit'];
+// 'transfer' = a self-transfer between the user's own accounts (one row carrying
+// fromAccountId=accountId + toAccountId). It is NOT spending or income and is
+// excluded from those totals everywhere.
+export const TX_DIRECTIONS = ['debit', 'credit', 'transfer'];
 export const TX_STATUSES = ['confirmed', 'needs_review'];
 
 /**
@@ -21,6 +24,12 @@ const transactionSchema = new Schema(
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     accountId: { type: Schema.Types.ObjectId, ref: 'Account', index: true },
     accountName: { type: String, default: '' }, // denormalized for fast list rendering
+
+    // Self-transfer destination. Set only when direction === 'transfer':
+    // accountId is the FROM account (debited), toAccountId is the TO account
+    // (credited). Both balances move together when the transfer is confirmed.
+    toAccountId: { type: Schema.Types.ObjectId, ref: 'Account', default: null, index: true },
+    toAccountName: { type: String, default: '' },
 
     // Goal funding link. When set, this transaction is a contribution toward a
     // savings goal: it shows as a *pending* contribution while needs_review and
@@ -52,6 +61,13 @@ const transactionSchema = new Schema(
     dateLabel: { type: String, default: '' }, // design groups by label e.g. "TODAY · 29 JUN"
 
     note: { type: String, default: '' },
+
+    // Monthly / recurring expense marker. `recurring:true` flags items like
+    // Health/Term Insurance or a SIP as a repeating monthly outflow. We store
+    // the flag + frequency only (no auto-generation of future rows) so the user
+    // can see a 🔁 indicator and filter their "Monthly bills".
+    recurring: { type: Boolean, default: false, index: true },
+    frequency: { type: String, enum: ['monthly'], default: 'monthly' },
 
     // Per-bank balance tracking (Feature B).
     // availableBalance = the authoritative "Avl Bal" parsed from the alert (if

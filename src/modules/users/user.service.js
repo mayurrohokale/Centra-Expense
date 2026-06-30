@@ -20,7 +20,7 @@ export async function updateProfile(userId, patch) {
     update.email = patch.email;
   }
 
-  for (const key of ['name', 'phone', 'currency', 'avatarColor']) {
+  for (const key of ['name', 'phone', 'currency', 'avatarColor', 'reminderEnabled', 'reminderTime']) {
     if (patch[key] !== undefined) update[key] = patch[key];
   }
 

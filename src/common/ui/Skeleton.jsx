@@ -175,6 +175,37 @@ export function DiscoverSkeleton() {
   );
 }
 
+/** A single goal card placeholder: icon circle, title + amount line, progress bar, buttons. */
+export function SkeletonGoalCard() {
+  return (
+    <div style={{ borderRadius: 24, padding: 18, background: '#fff', border: '1.5px solid #f1ecf6' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+        <Skeleton w={46} h={46} r={15} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <SkeletonText w="55%" h={14} />
+          <SkeletonText w="40%" h={11} />
+        </div>
+        <SkeletonNumber w={42} h={16} />
+      </div>
+      <div style={{ marginTop: 14 }}><Skeleton h={11} r={20} /></div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
+        <Skeleton h={38} r={13} style={{ flex: 1 }} />
+        <Skeleton w={62} h={38} r={13} />
+        <Skeleton w={48} h={38} r={13} />
+      </div>
+    </div>
+  );
+}
+
+/** Goals section (Discover "Your goals"): header + a few goal cards. */
+export function GoalsSkeleton({ count = 3 }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+      {Array.from({ length: count }).map((_, i) => <SkeletonGoalCard key={i} />)}
+    </div>
+  );
+}
+
 /** Reports: header + period chips, summary card, donut+list, then lists. */
 export function ReportsSkeleton() {
   return (

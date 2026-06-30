@@ -120,6 +120,67 @@ export async function getTrendingFunds() {
   return list;
 }
 
+// Range → number of days of NAV history to return for the detail chart.
+const FUND_RANGE_DAYS = { '1M': 30, '6M': 182, '1Y': 365, '3Y': 365 * 3, MAX: Infinity };
+const FUND_HISTORY_TTL_MS = 60 * 60 * 1000; // 1h — NAVs update once daily
+
+/**
+ * Full fund detail for the trending-MF detail view: meta, latest NAV+date,
+ * NAV history points for a range (oldest→newest, {t,c}), and computed trailing
+ * returns (1Y/3Y/5Y annualized CAGR). Cached 1h. Returns null on failure.
+ * `key` is `${schemeCode}:${range}`; the underlying NAV history is fetched once
+ * per scheme and sliced per range.
+ */
+export async function getFundHistory(schemeCode, rangeKey = '1Y') {
+  const cacheKey = `hist:${schemeCode}:${rangeKey}`;
+  const cached = getCached(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const json = await httpGetJson(`${BASE}/${encodeURIComponent(schemeCode)}`, { timeoutMs: 9000 });
+    const data = Array.isArray(json?.data) ? json.data : []; // newest-first
+    if (data.length < 2) return null;
+
+    const latest = data[0];
+    const latestDate = parseMfDate(latest.date);
+    const days = FUND_RANGE_DAYS[rangeKey] ?? 365;
+    const cutoff = days === Infinity ? -Infinity : latestDate.getTime() - days * 86400000;
+
+    // Build oldest→newest points within the range for the chart.
+    const points = data
+      .filter((row) => parseMfDate(row.date).getTime() >= cutoff)
+      .map((row) => ({ t: parseMfDate(row.date).getTime(), c: Number(row.nav) }))
+      .filter((p) => Number.isFinite(p.c))
+      .sort((a, b) => a.t - b.t);
+
+    const first = points[0]?.c;
+    const last = points[points.length - 1]?.c;
+    const vals = points.map((p) => p.c);
+
+    const result = {
+      schemeCode: String(schemeCode),
+      name: json?.meta?.scheme_name || `Scheme ${schemeCode}`,
+      fundHouse: json?.meta?.fund_house || '',
+      category: json?.meta?.scheme_category || '',
+      nav: latest ? Number(latest.nav) : null,
+      date: latest?.date || null,
+      points,
+      windowChangePct: first && last ? Number((((last - first) / first) * 100).toFixed(2)) : null,
+      high: vals.length ? Number(Math.max(...vals).toFixed(2)) : null,
+      low: vals.length ? Number(Math.min(...vals).toFixed(2)) : null,
+      // Trailing returns from the FULL history (annualized for >1y).
+      return1y: returnOver(data, 1),
+      return3y: returnOver(data, 3),
+      return5y: returnOver(data, 5),
+    };
+    setCached(cacheKey, result, FUND_HISTORY_TTL_MS);
+    return result;
+  } catch (err) {
+    logger.warn(`MFAPI history failed for ${schemeCode} (${rangeKey}): ${err?.message || 'error'}`);
+    return null;
+  }
+}
+
 /** Search funds by name. Returns [] on failure. */
 export async function searchFunds(q) {
   const key = `search:${q.trim().toLowerCase()}`;

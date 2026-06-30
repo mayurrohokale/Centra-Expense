@@ -21,12 +21,42 @@ function signedDelta(txn) {
 }
 
 /**
+ * Adjust one account's running balance by `delta`. `trackSpend` controls whether
+ * a cash outflow bumps the wallet's "spent this month" — true for real spending,
+ * FALSE for transfers (moving your own money is not spending).
+ */
+async function adjustAccount(userId, accountId, delta, trackSpend = false) {
+  if (!accountId) return;
+  const acct = await Account.findOne({ _id: accountId, userId });
+  if (!acct) return;
+  acct.balance = (acct.balance || 0) + delta;
+  if (acct.balanceSource !== 'email') acct.balanceSource = 'computed';
+  acct.balanceUpdatedAt = new Date();
+  if (trackSpend && acct.type === 'cash' && delta < 0) {
+    acct.spentThisMonth = (acct.spentThisMonth || 0) + Math.abs(delta);
+  }
+  acct.lastActivity = 'Just now';
+  await acct.save();
+}
+
+/**
  * Apply a transaction's balance effect to its account. No-op if already applied
  * or the txn has no linked account. Returns the updated account (lean) or null.
  */
 export async function applyBalanceForTransaction(userId, txnId) {
   const txn = await Transaction.findOne({ _id: txnId, userId });
   if (!txn || txn.balanceApplied || !txn.accountId) return null;
+
+  // Self-transfer: debit the FROM account and credit the TO account together.
+  // trackSpend=false on both legs — moving your own money is NOT spending, so it
+  // must not inflate a cash wallet's "spent this month" (or any spend total).
+  if (txn.direction === 'transfer') {
+    await adjustAccount(userId, txn.accountId, -txn.amount, false);  // from
+    await adjustAccount(userId, txn.toAccountId, txn.amount, false); // to
+    txn.balanceApplied = true;
+    await txn.save();
+    return null;
+  }
 
   const acct = await Account.findOne({ _id: txn.accountId, userId });
   if (!acct) return null;
@@ -63,6 +93,15 @@ export async function applyBalanceForTransaction(userId, txnId) {
 export async function reverseBalanceForTransaction(userId, txnId) {
   const txn = await Transaction.findOne({ _id: txnId, userId });
   if (!txn || !txn.balanceApplied) return null;
+
+  // Self-transfer: undo BOTH legs (credit back the from, debit back the to).
+  if (txn.direction === 'transfer') {
+    await adjustAccount(userId, txn.accountId, txn.amount, false);    // refund from
+    await adjustAccount(userId, txn.toAccountId, -txn.amount, false); // pull back to
+    txn.balanceApplied = false;
+    await txn.save();
+    return true;
+  }
 
   if (txn.accountId) {
     const acct = await Account.findOne({ _id: txn.accountId, userId });

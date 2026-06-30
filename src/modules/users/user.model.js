@@ -43,6 +43,12 @@ const userSchema = new Schema(
       payDay: { type: Number, default: null, min: 1, max: 31 },
     },
 
+    // In-app daily reminder to add transactions. When enabled, the app shows a
+    // dismissible banner after `reminderTime` (24h "HH:MM", local) on days the
+    // user hasn't logged a transaction. No push/email — purely in-app.
+    reminderEnabled: { type: Boolean, default: false },
+    reminderTime: { type: String, default: '21:00' },
+
     // First-run setup wizard state. Only genuinely-new signups get the wizard:
     // they are created with completed:false. Legacy users (no field) and the
     // seeded demo user are treated as already onboarded (completed:true).

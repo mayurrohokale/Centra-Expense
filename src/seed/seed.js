@@ -29,6 +29,7 @@ import { Transaction } from '../modules/transactions/transaction.model.js';
 import { Holding } from '../modules/holdings/holding.model.js';
 import { Connection } from '../modules/connections/connection.model.js';
 import { Category } from '../modules/categories/category.model.js';
+import { DEFAULT_CATEGORIES } from '../modules/categories/defaultCategories.js';
 import { Goal } from '../modules/goals/goal.model.js';
 import { goalThemeAt } from '../modules/goals/goalThemes.js';
 
@@ -100,18 +101,8 @@ async function run() {
     Goal.deleteMany({ userId }),
   ]);
 
-  // ---- categories ----
-  const categories = [
-    { key: 'food', label: 'Food & Dining', emoji: '🍔', color: '#FF6B5E', kind: 'expense', order: 1 },
-    { key: 'shopping', label: 'Shopping', emoji: '🛍️', color: '#A78BFA', kind: 'expense', order: 2 },
-    { key: 'bills', label: 'Bills & Utilities', emoji: '⚡', color: '#FFB23E', kind: 'expense', order: 3 },
-    { key: 'transport', label: 'Transport', emoji: '🚕', color: '#2BC4B0', kind: 'expense', order: 4 },
-    { key: 'entertainment', label: 'Entertainment', emoji: '🎬', color: '#FF6FA5', kind: 'expense', order: 5 },
-    { key: 'health', label: 'Health', emoji: '🩺', color: '#34D39E', kind: 'expense', order: 6 },
-    { key: 'services', label: 'Services', emoji: '🧾', color: '#6C5CE7', kind: 'expense', order: 7 },
-    { key: 'income', label: 'Income', emoji: '💰', color: '#16a34a', kind: 'income', order: 8 },
-    { key: 'other', label: 'Other', emoji: '🏷️', color: '#9b94a8', kind: 'expense', order: 9 },
-  ].map((c) => ({ ...c, userId }));
+  // ---- categories (shared defaults, including the expanded set) ----
+  const categories = DEFAULT_CATEGORIES.map((c) => ({ ...c, userId }));
   await Category.insertMany(categories);
 
   // ---- accounts (5 banks + cash) ----
