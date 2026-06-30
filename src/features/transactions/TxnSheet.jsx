@@ -68,10 +68,11 @@ export default function TxnSheet({ open, onClose, initialMode = 'expense', accou
   const sourceAcct = (isExpense || isTransfer) ? accounts.find((a) => a._id === accountId) : null;
   const availBalance = sourceAcct ? Math.max(0, Number(sourceAcct.balance || 0)) : null;
   const overBalance = availBalance != null && amtNum > availBalance;
-  // Category picker hides 'transfer' (set automatically) and income-only keys.
+  // Category picker hides 'transfer' + 'loan' (set automatically by their own
+  // flows) and income-only keys.
   const visibleCats = useMemo(
     () => cats.filter((c) => (isExpense
-      ? c.kind === 'expense' && c.key !== 'transfer'
+      ? c.kind === 'expense' && c.key !== 'transfer' && c.key !== 'loan'
       : c.kind === 'income' || c.key === 'income')),
     [cats, isExpense]
   );

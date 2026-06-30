@@ -11,6 +11,7 @@ import EmailConnect from '@/features/email-connect/EmailConnect';
 import Investments from '@/features/investments/Investments';
 import Discover from '@/features/discover/Discover';
 import Reports from '@/features/reports/Reports';
+import Loans from '@/features/loans/Loans';
 import Profile from '@/features/profile/Profile';
 import OnboardingWizard from '@/features/onboarding/OnboardingWizard';
 import AuthFlow from '@/features/auth/AuthFlow';
@@ -132,16 +133,17 @@ export default function Page() {
             <Profile />
           ) : (
             <>
-              {/* In-app end-of-day reminder (only on the main tabs, not Reports). */}
-              {tab !== 'reports' && <ReminderBanner onAdd={() => setTab('txns')} />}
+              {/* In-app end-of-day reminder (only on the main tabs, not Reports/Loans). */}
+              {tab !== 'reports' && tab !== 'loans' && <ReminderBanner onAdd={() => setTab('txns')} />}
               {tab === 'home' && <Dashboard onTab={setTab} />}
               {tab === 'txns' && <Transactions />}
               {tab === 'email' && <EmailConnect />}
               {tab === 'invest' && <Investments />}
               {tab === 'discover' && <Discover />}
-              {/* Reports: a focused view reached from Home's "View Reports"
-                  quick action — keeps the 5-tab bottom bar exactly as designed. */}
+              {/* Reports + Loans: focused views reached from Home cards —
+                  keeps the 5-tab bottom bar exactly as designed. */}
               {tab === 'reports' && <Reports onBack={() => setTab('home')} />}
+              {tab === 'loans' && <Loans onBack={() => setTab('home')} />}
             </>
           )}
         </div>

@@ -39,6 +39,12 @@ const transactionSchema = new Schema(
     // already been added to goal.saved (so confirm/reverse can't double count).
     goalApplied: { type: Boolean, default: false },
 
+    // Loan/debt link. When set, this transaction is a loan PRINCIPAL move or a
+    // REPAYMENT (categoryKey 'loan'). It moves the real balance like any txn, but
+    // is EXCLUDED from income/expense reports (a loan received isn't income; a
+    // repayment isn't a normal expense) — same treatment as 'transfer'.
+    loanId: { type: Schema.Types.ObjectId, ref: 'Loan', default: null, index: true },
+
     source: { type: String, enum: TX_SOURCES, required: true },
     direction: { type: String, enum: TX_DIRECTIONS, required: true },
     status: { type: String, enum: TX_STATUSES, default: 'confirmed', index: true },

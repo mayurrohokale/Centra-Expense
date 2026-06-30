@@ -223,7 +223,9 @@ export async function getSummary(userId) {
 
   const [rows, addedToday] = await Promise.all([
     Transaction.aggregate([
-      { $match: { userId, status: 'confirmed' } },
+      // Loan principal/repayments (loanId set) are NOT income/expense — excluded,
+      // mirroring how transfers (direction 'transfer') fall outside debit/credit.
+      { $match: { userId, status: 'confirmed', loanId: null } },
       { $group: { _id: '$direction', total: { $sum: '$amount' } } },
     ]),
     // Any transaction logged today (added or dated today, any status) — powers
@@ -242,7 +244,8 @@ export async function getSummary(userId) {
 /** Spend grouped by category for the "Where it went" bar chart. */
 export async function getCategoryBreakdown(userId) {
   return Transaction.aggregate([
-    { $match: { userId, direction: 'debit', status: 'confirmed' } },
+    // Exclude loan-linked debits (repayments / lending) — not real spending.
+    { $match: { userId, direction: 'debit', status: 'confirmed', loanId: null } },
     { $group: { _id: '$categoryKey', amount: { $sum: '$amount' } } },
     { $sort: { amount: -1 } },
   ]);

@@ -73,7 +73,11 @@ export function resolvePeriod(period, fromStr, toStr) {
 }
 
 function matchStage(uid, start, end, extra = {}) {
-  return { userId: uid, status: 'confirmed', occurredAt: { $gte: start, $lt: end }, ...extra };
+  // `loanId: null` excludes loan principal/repayment txns from ALL report
+  // aggregations (income, spend, by-category, by-account, merchants, trend) —
+  // a loan received isn't income and a repayment isn't a normal expense. This is
+  // the loan analogue of transfers being excluded by their 'transfer' direction.
+  return { userId: uid, status: 'confirmed', loanId: null, occurredAt: { $gte: start, $lt: end }, ...extra };
 }
 
 /** Money in / out / count for a window. */

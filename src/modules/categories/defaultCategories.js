@@ -21,6 +21,7 @@ export const DEFAULT_CATEGORIES = [
   { key: 'investment', label: 'Investment / SIP', emoji: '📈', color: '#22C55E', kind: 'expense', order: 15 },
   { key: 'services', label: 'Services', emoji: '🧾', color: '#6C5CE7', kind: 'expense', order: 16 },
   { key: 'transfer', label: 'Transfer', emoji: '🔁', color: '#64748B', kind: 'expense', order: 17 },
-  { key: 'income', label: 'Income', emoji: '💰', color: '#16a34a', kind: 'income', order: 18 },
-  { key: 'other', label: 'Other', emoji: '🏷️', color: '#9b94a8', kind: 'expense', order: 19 },
+  { key: 'loan', label: 'Loan / Debt', emoji: '🤝', color: '#0EA5E9', kind: 'expense', order: 18 },
+  { key: 'income', label: 'Income', emoji: '💰', color: '#16a34a', kind: 'income', order: 19 },
+  { key: 'other', label: 'Other', emoji: '🏷️', color: '#9b94a8', kind: 'expense', order: 20 },
 ];

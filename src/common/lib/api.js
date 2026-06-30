@@ -87,6 +87,14 @@ export const api = {
   deleteGoal: (id) => request(`/goals/${id}`, { method: 'DELETE' }),
   getGoalContributions: (id) => request(`/goals/${id}/contributions`),
 
+  // loans / debts
+  getLoans: () => request('/loans'),
+  createLoan: (body) => request('/loans', { method: 'POST', body: JSON.stringify(body) }),
+  deleteLoan: (id) => request(`/loans/${id}`, { method: 'DELETE' }),
+  repayLoan: (id, body) => request(`/loans/${id}/repay`, { method: 'POST', body: JSON.stringify(body) }),
+  getLoanRepayments: (id) => request(`/loans/${id}/repayments`),
+  deleteRepayment: (id, txnId) => request(`/loans/${id}/repayments/${txnId}`, { method: 'DELETE' }),
+
   // categories
   getCategories: () => request('/categories'),
 
