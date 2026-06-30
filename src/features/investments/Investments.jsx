@@ -32,9 +32,10 @@ const ALLOC_LEGEND = [
 ];
 
 function HoldingRow({ h }) {
-  const pl = h.currentValue - h.investedValue;
+  // Prefer server-computed P/L (native currency); fall back to a local calc.
+  const pl = h.pl != null ? h.pl : (h.currentValue - h.investedValue);
   const up = pl >= 0;
-  const pct = h.investedValue > 0 ? ((pl / h.investedValue) * 100).toFixed(1) : '0.0';
+  const pct = h.plPct != null ? h.plPct : (h.investedValue > 0 ? Number(((pl / h.investedValue) * 100).toFixed(1)) : 0);
   const plColor = up ? '#16a34a' : '#FF6B5E';
   const plBg = up ? '#E6F8F1' : '#FFE9E5';
   return (
@@ -42,11 +43,11 @@ function HoldingRow({ h }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
         <div style={{ width: 42, height: 42, borderRadius: 13, background: h.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 14, color: '#fff' }}>{h.tag}</div>
         <div style={{ flex: 1 }}><div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink }}>{h.name}</div><div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft }}>{h.subtitle}</div></div>
-        <div style={{ textAlign: 'right' }}><div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink, letterSpacing: '-.3px' }}>{inr(h.currentValue)}</div><div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11, color: plColor }}>{up ? '+' : ''}{pct}%</div></div>
+        <div style={{ textAlign: 'right' }}><div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink, letterSpacing: '-.3px' }}>{money(h, h.currentValue)}</div><div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11, color: plColor }}>{up ? '+' : ''}{pct}%</div></div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTop: '1.5px dashed #f1ecf6' }}>
-        <span style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft }}>Invested {inr(h.investedValue)}</span>
-        <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 11.5, padding: '3px 10px', borderRadius: 12, background: plBg, color: plColor }}>{up ? '+' : '-'}{inr(Math.abs(pl))}</span>
+        <span style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft }}>Invested {money(h, h.investedValue)}</span>
+        <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 11.5, padding: '3px 10px', borderRadius: 12, background: plBg, color: plColor }}>{up ? '+' : '-'}{money(h, Math.abs(pl))}</span>
       </div>
     </div>
   );
@@ -72,12 +73,19 @@ export default function Investments() {
   if (error) return <ErrorState error={error} onRetry={() => { holdings.refetch(); portfolio.refetch(); }} />;
 
   const all = holdings.data || [];
-  const port = portfolio.data || { current: 0, invested: 0, returns: 0, allocation: {} };
-  const manual = all.filter((h) => h.source === 'manual');
-  // Header total sums only ₹ holdings (crypto is in USD and shown per-card) to
-  // avoid a misleading mixed-currency sum. The portfolio card has the full ₹ rollup.
-  const manualHasCrypto = manual.some((h) => h.currency === 'USD');
-  const manualCurrentInr = manual.filter((h) => h.currency !== 'USD').reduce((s, h) => s + h.currentValue, 0);
+  const port = portfolio.data || { current: 0, invested: 0, returns: 0, returnsPct: 0, allocation: {} };
+  // Active holdings (exclude credited FDs — their money lives in the bank now).
+  const active = all.filter((h) => !h.excludeFromActive);
+  const maturedFds = all.filter((h) => h.excludeFromActive);
+  const manual = active.filter((h) => h.source === 'manual');
+  // Manual-section header total: ₹ rollup of manual active holdings (uses the
+  // server's INR-normalized currentInr so crypto is converted, never mixed).
+  const manualCurrentInr = manual.reduce((s, h) => s + (h.currentInr ?? h.currentValue), 0);
+
+  // Portfolio total return (₹ amount + %), colored.
+  const totalReturn = port.returns || 0;
+  const profit = totalReturn >= 0;
+  const returnColor = profit ? '#c8ffe1' : '#FFD2CC';
 
   const refreshHoldings = () => { holdings.refetch(); portfolio.refetch(); };
 
@@ -122,8 +130,13 @@ export default function Investments() {
           </div>
           <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
             <div style={{ flex: 1, background: 'rgba(255,255,255,.16)', borderRadius: 16, padding: 12 }}><div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: 'rgba(255,255,255,.82)' }}>Invested</div><div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 15, marginTop: 2 }}>{inr(port.invested)}</div></div>
-            <div style={{ flex: 1, background: 'rgba(255,255,255,.16)', borderRadius: 16, padding: 12 }}><div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: 'rgba(255,255,255,.82)' }}>Total returns</div><div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 15, marginTop: 2, color: '#c8ffe1' }}>+{inr(port.returns)}</div></div>
-            <div style={{ flex: '0 0 auto', background: 'rgba(255,255,255,.92)', borderRadius: 16, padding: '12px 13px', textAlign: 'center' }}><div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: '#6c5ce7' }}>XIRR</div><div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, marginTop: 2, color: '#16a34a' }}>18.6%</div></div>
+            <div style={{ flex: 1.4, background: 'rgba(255,255,255,.16)', borderRadius: 16, padding: 12 }}>
+              <div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: 'rgba(255,255,255,.82)' }}>Total return</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 2 }}>
+                <span style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: returnColor }}>{profit ? '▲' : '▼'} {profit ? '+' : '-'}{inr(Math.abs(totalReturn))}</span>
+                <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11.5, color: returnColor }}>({profit ? '+' : ''}{port.returnsPct ?? 0}%)</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -145,7 +158,7 @@ export default function Investments() {
 
       {/* holdings sections — auto-synced (AA / CAS / market) holdings grouped by type */}
       {SECTIONS.map((sec) => {
-        const items = all.filter((h) => h.instrumentType === sec.type && h.source !== 'manual');
+        const items = active.filter((h) => h.instrumentType === sec.type && h.source !== 'manual');
         if (!items.length) return null;
         const total = items.reduce((s, h) => s + h.currentValue, 0);
         return (
@@ -167,7 +180,7 @@ export default function Investments() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 4px 12px' }}>
           <span style={{ fontSize: 18 }}>✍️</span>
           <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 17, color: COLOR.ink, letterSpacing: '-.2px' }}>Manual investments</span>
-          {manual.length > 0 && <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.mutedSoft, marginLeft: 'auto', letterSpacing: '-.2px' }}>{inr(manualCurrentInr)}{manualHasCrypto ? ' + crypto' : ''}</span>}
+          {manual.length > 0 && <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.mutedSoft, marginLeft: 'auto', letterSpacing: '-.2px' }}>{inr(manualCurrentInr)}</span>}
         </div>
 
         {manual.length === 0 ? (
@@ -182,11 +195,13 @@ export default function Investments() {
             {manual.map((h) => {
               const isCrypto = h.instrumentType === 'crypto';
               const isFd = h.instrumentType === 'fd';
-              const pl = h.currentValue - h.investedValue;
+              // Prefer server-computed P/L (native currency).
+              const pl = h.pl != null ? h.pl : (h.currentValue - h.investedValue);
               const up = pl >= 0;
               const plColor = up ? '#16a34a' : '#FF6B5E';
-              const plPct = h.investedValue > 0 ? ((pl / h.investedValue) * 100).toFixed(1) : null;
-              const hasPL = (isCrypto || (h.currentValue != null && h.currentValue !== h.investedValue));
+              const plPct = h.plPct != null ? h.plPct : (h.investedValue > 0 ? Number(((pl / h.investedValue) * 100).toFixed(1)) : null);
+              // Show P/L whenever there's a real, non-zero move (crypto live, FD accrual, or a distinct current).
+              const hasPL = pl !== 0 || isCrypto || isFd;
               return (
                 <div key={h._id} style={{ borderRadius: 22, padding: '15px 17px', background: '#fff', boxShadow: '0 10px 22px rgba(90,70,130,.07)', border: '1.5px solid #f1ecf6' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
@@ -230,6 +245,45 @@ export default function Investments() {
           </div>
         )}
       </div>
+
+      {/* MATURED FDs — history (already credited to the bank → excluded from active totals) */}
+      {maturedFds.length > 0 && (
+        <div style={{ marginTop: 26 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 4px 12px' }}>
+            <span style={{ fontSize: 18 }}>🏦</span>
+            <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 17, color: COLOR.ink, letterSpacing: '-.2px' }}>Matured FDs</span>
+            <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: COLOR.mutedSoft, marginLeft: 'auto' }}>credited to your bank</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+            {maturedFds.map((h) => {
+              const gain = (h.maturityValue || h.currentValue) - (h.principal || h.investedValue);
+              return (
+                <div key={h._id} style={{ borderRadius: 22, padding: '15px 17px', background: '#F7FBF8', border: '1.5px solid #d8efe1' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
+                    <div style={{ width: 42, height: 42, borderRadius: 13, background: h.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 14, color: '#fff' }}>{h.tag}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink }}>{h.name}</div>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                        <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 9.5, letterSpacing: '.3px', padding: '2px 8px', borderRadius: 10, background: '#EAF7EF', color: '#1FAE63' }}>✓ MATURED · CREDITED</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink, letterSpacing: '-.3px' }}>{inr(h.maturityValue || h.currentValue)}</div>
+                      <div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11, color: '#16a34a' }}>+{inr(Math.max(0, gain))} interest</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 10, fontFamily: FONT.inter, fontWeight: 600, fontSize: 10.5, color: COLOR.mutedSoft }}>
+                    Principal {inr(h.principal || h.investedValue)} · {h.interestRate}% p.a.{h.maturityDate ? ` · matured ${dayMonth(h.maturityDate)}` : ''} → credited to your bank
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10, paddingTop: 10, borderTop: '1.5px dashed #d8efe1' }}>
+                    <span onClick={() => setDelHolding(h)} style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 11.5, color: COLOR.expense, cursor: 'pointer' }}>Remove from history</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* secondary options */}
       <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 11 }}>

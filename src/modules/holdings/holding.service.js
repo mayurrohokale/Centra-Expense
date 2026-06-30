@@ -1,14 +1,8 @@
 import { Holding } from './holding.model.js';
 import { HttpError } from '../../common/api/http.js';
-import { getSpotPricesForIds } from '../market-data/crypto.client.js';
+import { getSpotPricesForIds, getUsdInrRate } from '../market-data/crypto.client.js';
 import { createTransaction } from '../transactions/transaction.service.js';
 import { Account } from '../accounts/account.model.js';
-
-// Approximate USD→INR for the (₹-denominated) portfolio ROLLUP only. There's no
-// live FX feed wired, so crypto USD amounts are converted with this constant to
-// keep the portfolio total meaningful. The crypto CARDS still show true USD.
-// NOTE: refine with a live FX rate if/when one is added.
-const USD_INR = 83;
 
 /**
  * FD maturity value with QUARTERLY compounding (user decision):
@@ -40,33 +34,79 @@ export function listHoldings(userId, filter = {}) {
 }
 
 /**
- * Enrich lean holdings with LIVE values that aren't stored:
- *  - crypto (currency USD, has coinId+units): currentValue = units × spot USD
- *    (also exposes spotUsd + computed P/L). Falls back to stored currentValue
- *    when the price feed is unavailable.
- *  - FD: currentValue reflects the accrued (or matured) value; maturityValue is
- *    surfaced for display.
- * Returns plain objects safe for the API.
+ * Enrich lean holdings with LIVE, accurate per-asset values + P/L. Each returned
+ * holding gets, in its NATIVE currency:
+ *   investedValue, currentValue, pl (= current − invested), plPct
+ * and, normalized to ₹ for the portfolio rollup:
+ *   investedInr, currentInr, plInr
+ * plus flags: priceStale (crypto, price feed down), matured (FD past maturity),
+ * excludeFromActive (credited FD — its money now lives in the bank account).
+ *
+ * Per-asset rules:
+ *  - CRYPTO (USD): invested = units×buyPriceUsd (or stored); current = units×spot
+ *    USD. No live price → current falls back to invested (0 P/L, never fake gains).
+ *  - FD (₹): invested = principal; current = ACCRUED value to-date (quarterly
+ *    compounding, capped at maturity). Credited FDs use the maturity value but
+ *    are flagged excludeFromActive so the rollup doesn't double-count the bank.
+ *  - STOCKS/MF/GOLD/OTHER (₹): invested = stored; current = stored currentValue
+ *    if a real one exists, else falls back to invested (0 P/L, no fake gains).
+ *
+ * `fxRate` (USD→INR) is fetched once and threaded through; pass it to avoid a
+ * second lookup when the caller already has it.
  */
-export async function valueHoldings(holdings) {
+export async function valueHoldings(holdings, fxRate) {
   const cryptoIds = holdings
     .filter((h) => h.instrumentType === 'crypto' && h.coinId && h.units != null)
     .map((h) => h.coinId);
-  const spot = cryptoIds.length ? await getSpotPricesForIds(cryptoIds) : {};
+  const [spot, fx] = await Promise.all([
+    cryptoIds.length ? getSpotPricesForIds(cryptoIds) : Promise.resolve({}),
+    fxRate != null ? Promise.resolve(fxRate) : getUsdInrRate(),
+  ]);
 
   return holdings.map((h) => {
     const out = { ...h };
+    let invested = Number(h.investedValue) || 0;
+    let current = Number(h.currentValue) || 0;
+
     if (h.instrumentType === 'crypto' && h.coinId && h.units != null) {
       const px = spot[String(h.coinId).toLowerCase()];
       out.spotUsd = px ?? null;
-      out.priceStale = px == null; // couldn't refresh → using cost/last value
-      if (px != null) out.currentValue = Number((h.units * px).toFixed(2));
-      // currency stays USD; investedValue is the USD cost basis.
+      out.priceStale = px == null;
+      // Cost basis in USD (prefer explicit invested, else units×buyPrice).
+      invested = Number(h.investedValue) || (h.units * (h.buyPriceUsd || 0));
+      current = px != null ? Number((h.units * px).toFixed(2)) : invested; // no price → 0 P/L
+      out.currency = 'USD';
     } else if (h.instrumentType === 'fd') {
-      out.maturityValue = h.maturityValue ?? fdMaturityValue(h.principal, h.interestRate, h.fdStartDate, h.maturityDate);
-      // Show accrued-to-date as the current value (matured → maturity value).
-      out.currentValue = h.maturedCredited ? out.maturityValue : fdAccruedValue(h);
+      const maturity = h.maturityValue ?? fdMaturityValue(h.principal, h.interestRate, h.fdStartDate, h.maturityDate);
+      out.maturityValue = maturity;
+      invested = Number(h.principal ?? h.investedValue) || 0;
+      out.matured = !!(h.maturityDate && new Date() >= new Date(h.maturityDate));
+      // Credited FD: value lives in the bank now → flag for exclusion from active
+      // totals; show its maturity value for the "matured" history.
+      out.excludeFromActive = !!h.maturedCredited;
+      current = h.maturedCredited ? maturity : fdAccruedValue(h);
+      out.currency = 'INR';
+    } else {
+      // stocks / mutual_fund / gold / other: no live feed wired → use stored
+      // currentValue only when it's a real, distinct figure; else fall back to
+      // invested so we never show a fake gain/loss.
+      invested = Number(h.investedValue) || 0;
+      const stored = Number(h.currentValue);
+      current = Number.isFinite(stored) && stored > 0 ? stored : invested;
+      out.currency = h.currency || 'INR';
     }
+
+    out.investedValue = invested;
+    out.currentValue = current;
+    out.pl = Number((current - invested).toFixed(2));
+    out.plPct = invested > 0 ? Number((((current - invested) / invested) * 100).toFixed(1)) : 0;
+
+    // ₹-normalized for the rollup (crypto USD → ×fx).
+    const k = out.currency === 'USD' ? fx : 1;
+    out.investedInr = Math.round(invested * k);
+    out.currentInr = Math.round(current * k);
+    out.plInr = out.currentInr - out.investedInr;
+
     return out;
   });
 }
@@ -189,32 +229,53 @@ export async function deleteHolding(userId, id) {
   return { deleted: true, id: String(id) };
 }
 
-/** Portfolio rollup: current, invested, returns, simple allocation + naive XIRR proxy. */
+/**
+ * Portfolio rollup across ALL asset types (₹). Totals are the sum of per-asset
+ * ₹-normalized values from valueHoldings, EXCLUDING credited FDs (their money
+ * now lives in the bank account — counting it here would double-count). So:
+ *   invested = Σ investedInr (active)
+ *   current  = Σ currentInr  (active)
+ *   returns  = current − invested
+ *   returnsPct = returns / invested × 100   (guarded /0 and !isFinite)
+ * This stays internally consistent: Σ per-asset invested = total invested, etc.
+ */
 export async function getPortfolio(userId) {
   // Process any matured FDs first so their value/credit is reflected.
   await processMaturedFDs(userId);
   const raw = await Holding.find({ userId }).lean();
-  const holdings = await valueHoldings(raw);
-  // Convert each holding to ₹ for the rollup (crypto is USD → ×USD_INR).
-  const toInr = (h, v) => (h.currency === 'USD' ? v * USD_INR : v);
-  const invested = holdings.reduce((s, h) => s + toInr(h, h.investedValue), 0);
-  const current = holdings.reduce((s, h) => s + toInr(h, h.currentValue), 0);
+  const fxRate = await getUsdInrRate();
+  const valued = await valueHoldings(raw, fxRate);
+
+  // Active = everything except credited FDs (already reflected in the bank).
+  const active = valued.filter((h) => !h.excludeFromActive);
+
+  const invested = active.reduce((s, h) => s + h.investedInr, 0);
+  const current = active.reduce((s, h) => s + h.currentInr, 0);
   const returns = current - invested;
+  const returnsPctRaw = invested > 0 ? (returns / invested) * 100 : 0;
+  const returnsPct = Number.isFinite(returnsPctRaw) ? Number(returnsPctRaw.toFixed(1)) : 0;
 
-  const byType = { mutual_fund: 0, crypto: 0, fd: 0 };
-  for (const h of holdings) byType[h.instrumentType] = (byType[h.instrumentType] || 0) + toInr(h, h.currentValue);
-
+  // Allocation by type (₹ current), three headline buckets for the donut.
+  const byType = {};
+  for (const h of active) byType[h.instrumentType] = (byType[h.instrumentType] || 0) + h.currentInr;
   const pct = (v) => (current > 0 ? Math.round((v / current) * 100) : 0);
+
+  // Matured-FD history summary (excluded from active, shown separately).
+  const maturedFds = valued.filter((h) => h.excludeFromActive);
+  const maturedTotal = maturedFds.reduce((s, h) => s + (h.maturityValue || h.currentInr), 0);
 
   return {
     current,
     invested,
     returns,
-    returnsPct: invested > 0 ? Number(((returns / invested) * 100).toFixed(1)) : 0,
+    returnsPct,
+    fxRate,
     allocation: {
-      mutual_fund: pct(byType.mutual_fund),
-      crypto: pct(byType.crypto),
-      fd: pct(byType.fd),
+      mutual_fund: pct(byType.mutual_fund || 0),
+      crypto: pct(byType.crypto || 0),
+      fd: pct(byType.fd || 0),
     },
+    maturedCount: maturedFds.length,
+    maturedTotal,
   };
 }

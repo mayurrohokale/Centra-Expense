@@ -111,6 +111,53 @@ export async function getSpotPricesForIds(ids = []) {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Live USD→INR FX rate (keyless), used to convert crypto USD values into ₹ for
+// the portfolio rollup. Cached 1h; serves stale or a sane fallback on failure;
+// never throws.
+// ---------------------------------------------------------------------------
+const FX_FALLBACK = 83; // sane default if every source fails
+const FX_TTL_MS = 60 * 60 * 1000; // 1h
+let fxCache = null; // { rate, expiresAt }
+
+export async function getUsdInrRate() {
+  if (fxCache && fxCache.expiresAt > Date.now()) return fxCache.rate;
+
+  // Source 1: derive from CoinGecko (same base, already wired) — tether (a USD
+  // stablecoin ≈ $1) priced in INR ≈ the USD→INR rate.
+  try {
+    const json = await httpGetJson(
+      `${BASE}/simple/price?ids=tether&vs_currencies=inr`,
+      { timeoutMs: 7000, retries: 1 }
+    );
+    const r = json?.tether?.inr;
+    if (typeof r === 'number' && r > 50 && r < 200) {
+      fxCache = { rate: r, expiresAt: Date.now() + FX_TTL_MS };
+      return r;
+    }
+  } catch (err) {
+    logger.warn(`FX via CoinGecko failed: ${err?.message || 'error'}`);
+  }
+
+  // Source 2: open.er-api.com (keyless FX).
+  try {
+    const json = await httpGetJson(
+      'https://open.er-api.com/v6/latest/USD',
+      { timeoutMs: 7000, retries: 1 }
+    );
+    const r = json?.rates?.INR;
+    if (typeof r === 'number' && r > 50 && r < 200) {
+      fxCache = { rate: r, expiresAt: Date.now() + FX_TTL_MS };
+      return r;
+    }
+  } catch (err) {
+    logger.warn(`FX via open.er-api failed: ${err?.message || 'error'}`);
+  }
+
+  // Fallback: last cached rate (even if expired) or the constant.
+  return fxCache?.rate ?? FX_FALLBACK;
+}
+
 // Range → CoinGecko market_chart `days`. 24h/7d/30d per the product spec.
 const HIST_RANGE = {
   '24h': { days: 1 },
