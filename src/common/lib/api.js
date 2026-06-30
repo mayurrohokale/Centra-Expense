@@ -53,6 +53,7 @@ export const api = {
   recategorize: () => request('/transactions/recategorize', { method: 'POST' }),
   createTransaction: (body) => request('/transactions', { method: 'POST', body: JSON.stringify(body) }),
   updateTransaction: (id, patch) => request(`/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteTransaction: (id) => request(`/transactions/${id}`, { method: 'DELETE' }),
 
   // holdings
   getHoldings: () => request('/holdings'),
@@ -77,6 +78,13 @@ export const api = {
 
   // categories
   getCategories: () => request('/categories'),
+
+  // reports / analytics
+  getReport: (params = {}) => {
+    const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v));
+    const q = qs.toString();
+    return request(`/reports${q ? `?${q}` : ''}`);
+  },
 
   // market data
   getDiscover: () => request('/market/discover'),

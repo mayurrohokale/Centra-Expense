@@ -42,6 +42,7 @@ export default function EmailConnect() {
   const [picker, setPicker] = useState(null);
   const [busy, setBusy] = useState('');     // global action: 'sim' | 'syncall'
   const [busyId, setBusyId] = useState(''); // per-account: `${id}:sync` | `${id}:disc`
+  const [delId, setDelId] = useState('');   // draft id pending inline delete confirm
   const [result, setResult] = useState(null);
   const [flash, setFlash] = useState(null);
 
@@ -117,6 +118,13 @@ export default function EmailConnect() {
 
   // refetchAll includes accounts so the bank balance visibly updates on confirm.
   async function confirm(id) { await api.confirmTransaction(id); refetchAll(); }
+
+  // Delete a DRAFT only (drafts never touched the balance). Inline-confirmed —
+  // no browser dialog.
+  async function deleteDraft(id) {
+    try { await api.deleteTransaction(id); }
+    finally { setDelId(''); refetchAll(); }
+  }
 
   // Auto-detected = email-sourced needs_review txns, grouped by bank/inbox.
   const emailReview = (review.data || []).filter((r) => r.source === 'email');
@@ -289,10 +297,20 @@ export default function EmailConnect() {
                       <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 9.5, letterSpacing: '.4px', padding: '4px 8px', borderRadius: 9, background: '#EAF7EF', color: '#1FAE63' }}>{d.categorySource === 'ai' ? 'AI' : 'AUTO'}</span>
                     )}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
-                    <div onClick={() => confirm(d._id)} style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 13, background: '#2BC4B0', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer' }}>Confirm</div>
-                    <div onClick={() => setPicker(d)} style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 13, background: '#f4eefb', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#A78BFA', cursor: 'pointer' }}>Edit category</div>
-                  </div>
+                  {/* Drafts (needs_review) only — delete control + inline confirm. */}
+                  {delId === d._id ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
+                      <span style={{ flex: 1, fontFamily: FONT.inter, fontWeight: 700, fontSize: 12, color: '#d6483b' }}>Delete this draft?</span>
+                      <div onClick={() => deleteDraft(d._id)} style={{ padding: '10px 14px', borderRadius: 13, background: '#FF6B5E', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer' }}>Delete</div>
+                      <div onClick={() => setDelId('')} style={{ padding: '10px 14px', borderRadius: 13, background: '#f1eef6', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#9b94a8', cursor: 'pointer' }}>Cancel</div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 11 }}>
+                      <div onClick={() => confirm(d._id)} style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 13, background: '#2BC4B0', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer' }}>Confirm</div>
+                      <div onClick={() => setPicker(d)} style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 13, background: '#f4eefb', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#A78BFA', cursor: 'pointer' }}>Edit category</div>
+                      <div onClick={() => setDelId(d._id)} title="Delete draft" style={{ padding: '10px 12px', textAlign: 'center', borderRadius: 13, background: '#FEECEC', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: '#d6483b', cursor: 'pointer' }}>🗑</div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

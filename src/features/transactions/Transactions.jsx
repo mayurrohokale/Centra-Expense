@@ -35,6 +35,7 @@ export default function Transactions() {
   const [cashOpen, setCashOpen] = useState(false);
   const [txnSheet, setTxnSheet] = useState(null); // null | 'expense' | 'income'
   const [picker, setPicker] = useState(null); // { txn, confirmOnPick }
+  const [delId, setDelId] = useState(''); // draft id pending inline delete confirm
 
   const summary = useApi(api.getSummary, []);
   const review = useApi(api.getNeedsReview, []);
@@ -66,6 +67,12 @@ export default function Transactions() {
   async function confirm(id) {
     await api.confirmTransaction(id);
     refreshAll();
+  }
+
+  // Delete a DRAFT only (drafts never moved the balance). Inline-confirmed.
+  async function deleteDraft(id) {
+    try { await api.deleteTransaction(id); }
+    finally { setDelId(''); refreshAll(); }
   }
 
   const segStyle = (active) => ({
@@ -163,10 +170,20 @@ export default function Transactions() {
                   <div style={{ flex: 1 }}><div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink }}>{r.merchant}</div><div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: '#8b5cf6', marginTop: 1 }}>📧 from {r.accountName} email · {r.dateLabel}</div></div>
                   <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: '#FF6B5E', letterSpacing: '-.3px' }}>{signedInr(r.amount, r.direction)}</div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
-                  <div onClick={() => confirm(r._id)} style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 13, background: '#2BC4B0', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer' }}>Confirm</div>
-                  <div onClick={() => setPicker({ txn: r, confirmOnPick: true })} style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 13, background: '#f4eefb', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#A78BFA', cursor: 'pointer' }}>Edit category</div>
-                </div>
+                {/* Drafts only — delete control + inline confirm (no browser dialog). */}
+                {delId === r._id ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
+                    <span style={{ flex: 1, fontFamily: FONT.inter, fontWeight: 700, fontSize: 12, color: '#d6483b' }}>Delete this draft?</span>
+                    <div onClick={() => deleteDraft(r._id)} style={{ padding: '10px 14px', borderRadius: 13, background: '#FF6B5E', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer' }}>Delete</div>
+                    <div onClick={() => setDelId('')} style={{ padding: '10px 14px', borderRadius: 13, background: '#f1eef6', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#9b94a8', cursor: 'pointer' }}>Cancel</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13 }}>
+                    <div onClick={() => confirm(r._id)} style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 13, background: '#2BC4B0', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer' }}>Confirm</div>
+                    <div onClick={() => setPicker({ txn: r, confirmOnPick: true })} style={{ flex: 1, textAlign: 'center', padding: 10, borderRadius: 13, background: '#f4eefb', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#A78BFA', cursor: 'pointer' }}>Edit category</div>
+                    <div onClick={() => setDelId(r._id)} title="Delete draft" style={{ padding: '10px 12px', textAlign: 'center', borderRadius: 13, background: '#FEECEC', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: '#d6483b', cursor: 'pointer' }}>🗑</div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -9,6 +9,7 @@ import Transactions from '@/features/transactions/Transactions';
 import EmailConnect from '@/features/email-connect/EmailConnect';
 import Investments from '@/features/investments/Investments';
 import Discover from '@/features/discover/Discover';
+import Reports from '@/features/reports/Reports';
 import Profile from '@/features/profile/Profile';
 import OnboardingWizard from '@/features/onboarding/OnboardingWizard';
 import AuthFlow from '@/features/auth/AuthFlow';
@@ -123,6 +124,9 @@ export default function Page() {
               {tab === 'email' && <EmailConnect />}
               {tab === 'invest' && <Investments />}
               {tab === 'discover' && <Discover />}
+              {/* Reports: a focused view reached from Home's "View Reports"
+                  quick action — keeps the 5-tab bottom bar exactly as designed. */}
+              {tab === 'reports' && <Reports onBack={() => setTab('home')} />}
             </>
           )}
         </div>

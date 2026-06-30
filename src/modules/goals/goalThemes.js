@@ -27,4 +27,29 @@ export const GOAL_SUGGESTIONS = [
 ];
 
 // Emoji palette for the goal editor's picker.
-export const GOAL_EMOJIS = ['🎯', '🛟', '✈️', '🏍️', '🚗', '🏠', '📱', '💻', '🎓', '💍', '🎁', '💰', '🏖️', '⌚', '🐶', '👶', '🏥', '📷'];
+export const GOAL_EMOJIS = ['🎯', '🎮', '🕹️', '🛟', '✈️', '🏍️', '🚗', '🏠', '📱', '💻', '🎓', '💍', '🎁', '💰', '🏖️', '⌚', '🐶', '👶', '🏥', '📷'];
+
+// Auto-pick a goal icon from its name (used by the editor when the user hasn't
+// manually chosen one). Gaming goals like "GTA 6" / "PS5" → 🎮.
+const NAME_ICONS = [
+  [/\b(gta|ps5|ps4|ps3|playstation|xbox|nintendo|switch|steam|gaming|gamer|game|console)\b/i, '🎮'],
+  [/\b(trip|travel|vacation|holiday|goa|flight|tour)\b/i, '✈️'],
+  [/\b(bike|motorcycle|scooter|royal enfield)\b/i, '🏍️'],
+  [/\b(car|vehicle)\b/i, '🚗'],
+  [/\b(home|house|flat|apartment|down ?payment)\b/i, '🏠'],
+  [/\b(phone|iphone|mobile|smartphone)\b/i, '📱'],
+  [/\b(laptop|macbook|notebook|pc|desktop)\b/i, '💻'],
+  [/\b(wedding|marriage|shaadi)\b/i, '💍'],
+  [/\b(education|course|college|university|fees|tuition)\b/i, '🎓'],
+  [/\b(emergency|rainy ?day)\b/i, '🛟'],
+  [/\b(camera|dslr|gopro)\b/i, '📷'],
+  [/\b(watch|smartwatch|apple watch)\b/i, '⌚'],
+  [/\b(gift|festive|diwali|festival)\b/i, '🎁'],
+];
+
+/** Suggest an emoji for a goal name, or null when nothing matches. */
+export function iconForGoalName(name) {
+  const s = String(name || '');
+  for (const [re, emoji] of NAME_ICONS) if (re.test(s)) return emoji;
+  return null;
+}

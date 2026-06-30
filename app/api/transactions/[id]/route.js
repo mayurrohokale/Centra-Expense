@@ -22,3 +22,15 @@ export const PATCH = handle(async (req, ctx) => {
   if (!updated) throw new HttpError(404, 'Transaction not found');
   return ok({ data: updated });
 });
+
+/**
+ * Draft-only delete: removes a needs_review transaction. The service HARD
+ * blocks deleting a confirmed transaction (400) — this control is for drafts.
+ */
+export const DELETE = handle(async (req, ctx) => {
+  await requireDb();
+  const user = await requireAuth();
+  const { id } = await ctx.params;
+  const result = await service.deleteDraftTransaction(user._id, id);
+  return ok({ data: result });
+});

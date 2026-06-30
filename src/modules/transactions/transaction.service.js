@@ -1,7 +1,8 @@
 import { Transaction } from './transaction.model.js';
+import { HttpError } from '../../common/api/http.js';
 import { fingerprint } from '../../common/crypto/cryptoService.js';
 import { categorize } from '../email-ingestion/categorize.js';
-import { applyBalanceForTransaction } from '../accounts/balance.service.js';
+import { applyBalanceForTransaction, reverseBalanceForTransaction } from '../accounts/balance.service.js';
 
 /** Build a query from list filters. segment: all|in|out, source, status, q. */
 export async function listTransactions(userId, { segment = 'all', source, status, q } = {}) {
@@ -37,6 +38,24 @@ export async function confirmTransaction(userId, id, patch = {}) {
   // applyBalance is itself idempotent via the txn's balanceApplied flag.
   if (confirmed) await applyBalanceForTransaction(userId, confirmed._id);
   return confirmed;
+}
+
+/**
+ * Delete a DRAFT (needs_review) transaction. This is the draft-only delete
+ * control: confirmed transactions are NOT deletable here (returns 400). A draft
+ * never applied a balance effect (balanceApplied=false), so no reversal is
+ * needed — but as a safety net we reverse first if the flag is somehow set.
+ */
+export async function deleteDraftTransaction(userId, id) {
+  const txn = await Transaction.findOne({ _id: id, userId }).lean();
+  if (!txn) throw new HttpError(404, 'Transaction not found');
+  if (txn.status === 'confirmed') {
+    throw new HttpError(400, 'Confirmed transactions cannot be deleted here.');
+  }
+  // Safety net: a draft should never have moved a balance, but if it did, undo it.
+  if (txn.balanceApplied) await reverseBalanceForTransaction(userId, id);
+  await Transaction.deleteOne({ _id: id, userId, status: 'needs_review' });
+  return { deleted: true, id: String(id) };
 }
 
 /** Edit a transaction (e.g. re-categorize) — works for any of the user's rows. */

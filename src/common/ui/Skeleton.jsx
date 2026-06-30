@@ -174,3 +174,32 @@ export function DiscoverSkeleton() {
     </div>
   );
 }
+
+/** Reports: header + period chips, summary card, donut+list, then lists. */
+export function ReportsSkeleton() {
+  return (
+    <div style={PAD}>
+      <div style={{ margin: '6px 4px 14px' }}><Skeleton w={150} h={25} r={8} /></div>
+      <div style={{ display: 'flex', gap: 8, overflow: 'hidden', marginBottom: 16 }}>
+        <SkeletonChip w={90} /><SkeletonChip w={90} /><SkeletonChip w={110} /><SkeletonChip w={80} />
+      </div>
+      <div style={{ ...CARD, borderRadius: 26, padding: 22 }}>
+        <SkeletonText w="35%" h={11} />
+        <div style={{ marginTop: 12 }}><Skeleton w={170} h={34} r={9} /></div>
+        <div style={{ marginTop: 16, display: 'flex', gap: 11 }}>
+          <Skeleton h={56} r={16} /><Skeleton h={56} r={16} /><Skeleton h={56} r={16} />
+        </div>
+      </div>
+      <div style={{ ...CARD, borderRadius: 26, padding: 22, marginTop: 16 }}>
+        <SkeletonText w="45%" h={14} />
+        <div style={{ marginTop: 18, display: 'flex', gap: 18, alignItems: 'center' }}>
+          <SkeletonCircle d={120} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <SkeletonText w="80%" /><SkeletonText w="65%" /><SkeletonText w="70%" /><SkeletonText w="55%" />
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop: 22 }}><SkeletonRows count={4} /></div>
+    </div>
+  );
+}

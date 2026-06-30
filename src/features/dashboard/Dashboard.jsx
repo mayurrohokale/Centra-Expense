@@ -65,8 +65,11 @@ export default function Dashboard({ onTab }) {
   const banks = (accounts.data || []).filter((a) => a.type === 'bank');
   const cash = (accounts.data || []).find((a) => a.type === 'cash');
   const bankTotal = banks.reduce((s, b) => s + b.balance, 0);
+  const cashBalance = cash?.balance || 0;
+  // Overall total now INCLUDES cash on hand (shown distinctly below).
+  const totalBalance = bankTotal + cashBalance;
   const port = portfolio.data || { current: 0, invested: 0, allocation: {} };
-  const netWorth = bankTotal + port.current;
+  const netWorth = bankTotal + cashBalance + port.current;
   const sum = summary.data || { income: 0, expenses: 0, savings: 0 };
   const firstName = (me.data?.name || 'there').split(' ')[0];
   const spendPct = sum.income > 0 ? Math.min(100, Math.round((sum.expenses / sum.income) * 100)) : 0;
@@ -88,7 +91,7 @@ export default function Dashboard({ onTab }) {
     { label: 'Add Expense', emoji: '💸', bg: 'linear-gradient(135deg,#FF8A7A,#FF6B5E)', shadow: 'rgba(255,107,94,.4)', run: () => setTxnSheet('expense') },
     { label: 'Add Income', emoji: '💰', bg: 'linear-gradient(135deg,#2BC4B0,#34D39E)', shadow: 'rgba(43,196,176,.4)', run: () => setTxnSheet('income') },
     { label: 'Connect Email', emoji: '✉️', bg: 'linear-gradient(135deg,#A78BFA,#C8A2FF)', shadow: 'rgba(167,139,250,.4)', run: () => onTab('email') },
-    { label: 'View Reports', emoji: '📊', bg: 'linear-gradient(135deg,#FFB23E,#FF9F1C)', shadow: 'rgba(255,159,28,.4)', run: () => onTab('discover') },
+    { label: 'View Reports', emoji: '📊', bg: 'linear-gradient(135deg,#FFB23E,#FF9F1C)', shadow: 'rgba(255,159,28,.4)', run: () => onTab('reports') },
   ];
 
   return (
@@ -104,10 +107,13 @@ export default function Dashboard({ onTab }) {
             <span style={{ fontFamily: FONT.inter, fontWeight: 700, color: 'rgba(255,255,255,.85)', fontSize: 11, letterSpacing: '.8px' }}>TOTAL BALANCE</span>
             <span style={{ background: 'rgba(255,255,255,.22)', color: '#fff', fontFamily: FONT.jakarta, fontWeight: 600, fontSize: 10.5, padding: '2px 8px', borderRadius: 20 }}>{banks.length} accounts</span>
           </div>
-          <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, color: '#fff', fontSize: 42, lineHeight: 1.02, marginTop: 6, letterSpacing: '-1.2px', textShadow: '0 4px 14px rgba(120,40,90,.25)' }}>{inr(bankTotal)}</div>
-          {hasBanks ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 14 }}>
-              <span style={{ fontFamily: FONT.inter, fontWeight: 500, color: 'rgba(255,255,255,.9)', fontSize: 12.5 }}>across {banks.length} {banks.length === 1 ? 'account' : 'accounts'}</span>
+          <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, color: '#fff', fontSize: 42, lineHeight: 1.02, marginTop: 6, letterSpacing: '-1.2px', textShadow: '0 4px 14px rgba(120,40,90,.25)' }}>{inr(totalBalance)}</div>
+          {hasBanks || cashBalance > 0 ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13, flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,.2)', borderRadius: 20, padding: '4px 11px', fontFamily: FONT.inter, fontWeight: 700, fontSize: 11.5, color: '#fff' }}>🏦 {inr(bankTotal)} bank</span>
+              {cash && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,.2)', borderRadius: 20, padding: '4px 11px', fontFamily: FONT.inter, fontWeight: 700, fontSize: 11.5, color: '#fff' }}>👛 {inr(cashBalance)} cash</span>
+              )}
             </div>
           ) : (
             <div onClick={openProfile} style={{ marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,.95)', color: '#d6483b', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 13, padding: '9px 15px', borderRadius: 20, cursor: 'pointer' }}>+ Add your first account</div>

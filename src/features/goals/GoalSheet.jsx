@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../common/lib/api.js';
 import { FONT, COLOR } from '../../common/theme/tokens.js';
-import { GOAL_EMOJIS } from '../../modules/goals/goalThemes.js';
+import { GOAL_EMOJIS, iconForGoalName } from '../../modules/goals/goalThemes.js';
 import Sheet from '../../common/ui/Sheet.jsx';
 
 const labelStyle = {
@@ -19,6 +19,7 @@ export default function GoalSheet({ open, onClose, goal, prefill, onSaved }) {
   const [emoji, setEmoji] = useState('🎯');
   const [name, setName] = useState('');
   const [target, setTarget] = useState('');
+  const [emojiTouched, setEmojiTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -28,8 +29,21 @@ export default function GoalSheet({ open, onClose, goal, prefill, onSaved }) {
     setEmoji(src?.emoji || '🎯');
     setName(src?.name || '');
     setTarget(src?.target ? String(src.target) : '');
+    setEmojiTouched(!!src?.emoji && src.emoji !== '🎯');
     setErr('');
   }, [open, goal, prefill]);
+
+  // Auto-suggest an icon from the name while the user hasn't manually picked one
+  // (e.g. "GTA 6" / "PS5" → 🎮). Manual picks (emojiTouched) always win.
+  function onNameChange(v) {
+    setName(v);
+    if (!emojiTouched) {
+      const suggested = iconForGoalName(v);
+      if (suggested) setEmoji(suggested);
+    }
+  }
+
+  function pickEmoji(e) { setEmoji(e); setEmojiTouched(true); }
 
   if (!open) return null;
 
@@ -65,12 +79,12 @@ export default function GoalSheet({ open, onClose, goal, prefill, onSaved }) {
       <div style={labelStyle}>ICON</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {GOAL_EMOJIS.map((e) => (
-          <div key={e} onClick={() => setEmoji(e)} style={{ width: 42, height: 42, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, cursor: 'pointer', background: emoji === e ? '#2a2733' : '#FBF8F4', border: `1.5px solid ${emoji === e ? '#2a2733' : '#f1ecf6'}` }}>{e}</div>
+          <div key={e} onClick={() => pickEmoji(e)} style={{ width: 42, height: 42, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, cursor: 'pointer', background: emoji === e ? '#2a2733' : '#FBF8F4', border: `1.5px solid ${emoji === e ? '#2a2733' : '#f1ecf6'}` }}>{e}</div>
         ))}
       </div>
 
       <div style={labelStyle}>GOAL NAME</div>
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Goa trip" style={{ width: '100%', padding: '13px 16px', borderRadius: 16, background: '#FBF8F4', border: '1.5px solid #f1ecf6', outline: 'none', fontFamily: FONT.inter, fontWeight: 600, fontSize: 14, color: COLOR.ink }} />
+      <input value={name} onChange={(e) => onNameChange(e.target.value)} placeholder="e.g. PS5, Goa trip" style={{ width: '100%', padding: '13px 16px', borderRadius: 16, background: '#FBF8F4', border: '1.5px solid #f1ecf6', outline: 'none', fontFamily: FONT.inter, fontWeight: 600, fontSize: 14, color: COLOR.ink }} />
 
       <div style={labelStyle}>TARGET AMOUNT</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '13px 16px', borderRadius: 16, background: '#FBF8F4', border: '1.5px solid #f1ecf6' }}>

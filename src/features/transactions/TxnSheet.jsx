@@ -81,6 +81,10 @@ export default function TxnSheet({ open, onClose, initialMode = 'expense', accou
       await api.createTransaction({
         accountId: accountId || undefined,
         source: isCash ? 'cash' : 'manual',
+        // Created as DRAFT (needs_review) so it does NOT move the balance until
+        // the user confirms it — same as email-detected entries. The chosen
+        // account is preserved on the txn, so confirming adjusts the right bank.
+        status: 'needs_review',
         direction: isExpense ? 'debit' : 'credit',
         amount: amt,
         merchant: merchant.trim(),
@@ -90,9 +94,8 @@ export default function TxnSheet({ open, onClose, initialMode = 'expense', accou
         occurredAt,
         dateLabel: dateLabelFor(occurredAt),
       });
-      // Balance movement (bank AND cash) is now applied server-side when the
-      // transaction is created confirmed — see balance.service. No client-side
-      // account update needed (avoids double-counting).
+      // No client-side balance update: the balance moves server-side only when
+      // this draft is confirmed (confirmTransaction → applyBalanceForTransaction).
       reset();
       onDone();
     } catch (e) {
