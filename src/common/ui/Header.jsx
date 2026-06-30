@@ -37,6 +37,7 @@ export default function Header() {
 
   return (
     <header
+      className="safe-pad-top"
       style={{
         position: 'relative',
         zIndex: 30,
@@ -44,7 +45,11 @@ export default function Header() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '12px 18px',
+        // top padding comes from .safe-pad-top (12px + safe-area inset); keep
+        // horizontal + bottom here. (No inline paddingTop — it would beat the class.)
+        paddingLeft: 18,
+        paddingRight: 18,
+        paddingBottom: 12,
         background: 'rgba(255,255,255,.85)',
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',

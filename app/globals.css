@@ -7,11 +7,48 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/*
+ * Lock the document to the visual viewport so the PAGE never scrolls as a whole
+ * on a real phone. Only the app shell's content area scrolls (see MobileFrame /
+ * app shell). This is what keeps the fixed header + bottom nav from scrolling
+ * off-screen on mobile browsers (where body scroll would otherwise carry the
+ * whole frame, including the absolutely-positioned nav).
+ *
+ * `100dvh` tracks the *dynamic* viewport (shrinks/grows with the URL bar);
+ * `100vh` is the fallback for browsers without dvh support. overscroll-behavior
+ * none prevents iOS rubber-band/pull-to-refresh from revealing the body edge.
+ */
+html, body {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   font-family: 'Inter', sans-serif;
   background: radial-gradient(circle at 30% 20%, #efe9fb, #e6e9f3 70%);
-  min-height: 100vh;
+}
+
+/* App shell height: full viewport, upgraded to the dynamic viewport where
+ * supported so the mobile URL bar showing/hiding doesn't clip the bottom nav. */
+.centra-frame {
+  height: 100vh;
+}
+@supports (height: 100dvh) {
+  .centra-frame {
+    height: 100dvh;
+  }
+}
+
+/* Safe-area helpers for the pinned header / bottom nav (notch + home indicator).
+ * env() resolves to 0 on devices without insets, so these are always safe. */
+.safe-pad-top {
+  padding-top: calc(12px + env(safe-area-inset-top));
+}
+.safe-pad-bottom {
+  padding-bottom: calc(22px + env(safe-area-inset-bottom));
 }
 
 /* Hide scrollbars to match the prototype frame */

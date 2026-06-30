@@ -115,7 +115,19 @@ export default function Page() {
     >
       <MobileFrame>
         <Header />
-        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: inProfile ? 28 : 96 }}>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0, // allow this flex child to actually shrink + scroll
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch', // momentum scroll on iOS
+            // Clear the fixed bottom nav (+ its safe-area inset). Profile hides
+            // the nav, so it only needs the safe-area inset.
+            paddingBottom: inProfile
+              ? 'calc(28px + env(safe-area-inset-bottom))'
+              : 'calc(96px + env(safe-area-inset-bottom))',
+          }}
+        >
           {inProfile ? (
             <Profile />
           ) : (

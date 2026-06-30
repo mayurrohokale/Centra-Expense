@@ -10,3 +10,4 @@
 - [Taxonomy, Transfers & Recurring](taxonomy-transfers-recurring.md) — expanded category set + per-user backfill, self-transfers (excluded from reports), monthly-recurring flag/filter
 - [Reminder & Manual Investments](reminder-and-manual-investments.md) — in-app daily reminder banner, manual-holdings CRUD, GoalsSkeleton, MF detail (NAV chart+SIP calc), removed private-giants box
 - [Salary Tracking](salary-tracking.md) — salary account + expected amount/day on user.salary; email auto-detect + manual monthly tick (isSalary); per-month idempotency; Home SalaryCard + Reports line; binds to balance/income
+- [Mobile Layout](mobile-layout.md) — real-phone shell: locked body + dvh + safe-area, pinned Header/BottomNav, only content scrolls; shared Sheet maxHeight:90dvh + scrollable body (keyboard-safe)

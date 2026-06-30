@@ -8,6 +8,9 @@ export const metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
+  // Extend under the notch / home indicator so env(safe-area-inset-*) is
+  // non-zero and the header/bottom-nav can pad themselves into the safe area.
+  viewportFit: 'cover',
 };
 
 // Fonts loaded via Google Fonts <link> so the exact family names

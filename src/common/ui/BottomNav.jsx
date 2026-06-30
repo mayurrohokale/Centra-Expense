@@ -4,10 +4,15 @@ import { NAV } from '../theme/tokens.js';
 export default function BottomNav({ tab, onTab }) {
   return (
     <div
+      className="safe-pad-bottom"
       style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
         background: 'rgba(255,255,255,.94)', backdropFilter: 'blur(14px)',
-        borderTop: '1.5px solid #f0ebf5', padding: '10px 12px 22px',
+        WebkitBackdropFilter: 'blur(14px)',
+        borderTop: '1.5px solid #f0ebf5',
+        // bottom padding comes from .safe-pad-bottom (22px + safe-area inset);
+        // keep top + horizontal here (no inline paddingBottom — it'd beat the class).
+        paddingTop: 10, paddingLeft: 12, paddingRight: 12,
         display: 'flex', justifyContent: 'space-around', zIndex: 35,
       }}
     >
