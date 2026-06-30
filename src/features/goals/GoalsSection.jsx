@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api } from '../../common/lib/api.js';
 import { useApi } from '../../common/hooks/useApi.js';
 import { FONT, COLOR } from '../../common/theme/tokens.js';
@@ -11,6 +11,7 @@ import GoalSheet from './GoalSheet.jsx';
 import ContributeSheet from './ContributeSheet.jsx';
 
 const pctOf = (g) => Math.min(100, Math.round((g.saved / g.target) * 100));
+const isDone = (g) => !!g.completedAt || g.saved >= g.target;
 
 export default function GoalsSection() {
   const goals = useApi(api.getGoals, []);
@@ -18,8 +19,27 @@ export default function GoalsSection() {
   const [contribute, setContribute] = useState(null);
   const [removeTarget, setRemoveTarget] = useState(null);
   const [removing, setRemoving] = useState(false);
+  const [celebrate, setCelebrate] = useState(null); // { name, amount } | null
+  // Remember which goals were already complete so we only celebrate a NEW crossing.
+  const completedIds = useRef(null);
 
   const list = goals.data || [];
+
+  // Detect a fresh completion across refetches → one-time celebration toast.
+  const prevCompleted = completedIds.current;
+  const nowCompleted = new Set(list.filter(isDone).map((g) => g._id));
+  if (prevCompleted) {
+    const justDone = list.find((g) => isDone(g) && !prevCompleted.has(g._id));
+    if (justDone && (!celebrate || celebrate.id !== justDone._id)) {
+      setCelebrate({ id: justDone._id, name: justDone.name, amount: justDone.saved });
+      setTimeout(() => setCelebrate(null), 4500);
+    }
+  }
+  completedIds.current = nowCompleted;
+
+  const active = list.filter((g) => !isDone(g));
+  const completed = list.filter(isDone);
+
   const refresh = async () => { await goals.refetch(); };
 
   // Suggestions not already added (match by name, case-insensitive).
@@ -36,6 +56,38 @@ export default function GoalsSection() {
     } catch { /* leave open */ } finally { setRemoving(false); }
   }
 
+  // One goal card. Completed goals get an achieved badge + a full bar.
+  function renderGoal(g) {
+    const pct = pctOf(g);
+    const done = isDone(g);
+    return (
+      <div key={g._id} style={{ position: 'relative', borderRadius: 24, padding: 18, background: g.bg, border: `1.5px solid ${done ? '#bfe8d2' : g.border}`, overflow: 'hidden' }}>
+        {done && (
+          <div style={{ position: 'absolute', top: 12, right: 12, display: 'inline-flex', alignItems: 'center', gap: 5, background: '#1FAE63', color: '#fff', borderRadius: 12, padding: '3px 9px', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 9.5, letterSpacing: '.3px' }}>✓ ACHIEVED</div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 15, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 23, boxShadow: '0 6px 14px rgba(90,70,130,.10)' }}>{g.emoji}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 15, color: COLOR.ink }}>{g.name}</div>
+            <div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11.5, color: COLOR.muted }}>{inr(g.saved)} of {inr(g.target)}</div>
+          </div>
+          <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 16, color: done ? '#1FAE63' : g.accent, marginRight: done ? 56 : 0 }}>{pct}%</div>
+        </div>
+        <div style={{ height: 11, borderRadius: 20, background: 'rgba(255,255,255,.7)', marginTop: 14, overflow: 'hidden' }}>
+          <div style={{ width: `${pct}%`, height: '100%', borderRadius: 20, background: done ? '#1FAE63' : g.accent, transition: 'width .25s' }} />
+        </div>
+        {done && (
+          <div style={{ marginTop: 12, fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 12.5, color: '#13795f' }}>🎉 Goal achieved! You saved {inr(g.saved)} for {g.name}.</div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
+          <div onClick={() => setContribute(g)} style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: 13, background: done ? 'rgba(255,255,255,.8)' : g.accent, fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: done ? '#13795f' : '#fff', cursor: 'pointer' }}>{done ? '✓ Add more' : '+ Add money'}</div>
+          <div onClick={() => setEditor({ open: true, goal: g, prefill: null })} style={{ padding: '10px 14px', borderRadius: 13, background: 'rgba(255,255,255,.7)', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.muted, cursor: 'pointer' }}>Edit</div>
+          <div onClick={() => setRemoveTarget(g)} style={{ padding: '10px 14px', borderRadius: 13, background: 'rgba(255,255,255,.7)', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.expense, cursor: 'pointer' }}>✕</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 4px 13px' }}>
@@ -43,37 +95,39 @@ export default function GoalsSection() {
         <div onClick={() => setEditor({ open: true, goal: null, prefill: null })} style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 12.5, color: COLOR.purple, cursor: 'pointer' }}>+ New goal</div>
       </div>
 
+      {/* Celebration toast — one-time when a goal crosses 100%. */}
+      {celebrate && (
+        <div style={{ marginBottom: 13, borderRadius: 18, padding: '14px 16px', background: 'linear-gradient(120deg,#E9FBF3,#D6F5E8)', border: '1.5px solid #9fe3bf', display: 'flex', alignItems: 'center', gap: 12, animation: 'fadeIn .25s ease' }}>
+          <span style={{ fontSize: 26 }}>🎉</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 14, color: '#13795f' }}>Goal achieved!</div>
+            <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11.5, color: '#3a8a74' }}>You saved {inr(celebrate.amount)} for {celebrate.name}. 🥳</div>
+          </div>
+          <span onClick={() => setCelebrate(null)} style={{ fontFamily: FONT.inter, fontWeight: 800, fontSize: 16, color: '#3a8a74', cursor: 'pointer' }}>×</span>
+        </div>
+      )}
+
       {/* Loading skeleton (first load, before any data) */}
       {goals.loading && !goals.data && <GoalsSkeleton count={3} />}
 
-      {/* Goal cards */}
-      {!(goals.loading && !goals.data) && (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
-        {list.map((g) => {
-          const pct = pctOf(g);
-          const done = pct >= 100;
-          return (
-            <div key={g._id} style={{ borderRadius: 24, padding: 18, background: g.bg, border: `1.5px solid ${g.border}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                <div style={{ width: 46, height: 46, borderRadius: 15, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 23, boxShadow: '0 6px 14px rgba(90,70,130,.10)' }}>{g.emoji}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 15, color: COLOR.ink }}>{g.name}</div>
-                  <div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11.5, color: COLOR.muted }}>{inr(g.saved)} of {inr(g.target)}</div>
-                </div>
-                <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 16, color: g.accent }}>{pct}%</div>
-              </div>
-              <div style={{ height: 11, borderRadius: 20, background: 'rgba(255,255,255,.7)', marginTop: 14, overflow: 'hidden' }}>
-                <div style={{ width: `${pct}%`, height: '100%', borderRadius: 20, background: g.accent, transition: 'width .25s' }} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 14 }}>
-                <div onClick={() => setContribute(g)} style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: 13, background: g.accent, fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: '#fff', cursor: 'pointer' }}>{done ? '✓ Add more' : '+ Add money'}</div>
-                <div onClick={() => setEditor({ open: true, goal: g, prefill: null })} style={{ padding: '10px 14px', borderRadius: 13, background: 'rgba(255,255,255,.7)', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.muted, cursor: 'pointer' }}>Edit</div>
-                <div onClick={() => setRemoveTarget(g)} style={{ padding: '10px 14px', borderRadius: 13, background: 'rgba(255,255,255,.7)', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.expense, cursor: 'pointer' }}>✕</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* Active (in-progress) goals */}
+      {!(goals.loading && !goals.data) && active.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+          {active.map(renderGoal)}
+        </div>
+      )}
+
+      {/* Completed goals */}
+      {!(goals.loading && !goals.data) && completed.length > 0 && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, margin: '20px 4px 11px' }}>
+            <span style={{ fontFamily: FONT.inter, fontWeight: 800, fontSize: 11.5, color: '#1FAE63', letterSpacing: '.5px' }}>✓ COMPLETED</span>
+            <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 10.5, color: '#fff', background: '#1FAE63', padding: '1px 8px', borderRadius: 10 }}>{completed.length}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 13 }}>
+            {completed.map(renderGoal)}
+          </div>
+        </>
       )}
 
       {/* Empty state */}

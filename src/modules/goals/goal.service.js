@@ -3,6 +3,24 @@ import { Transaction } from '../transactions/transaction.model.js';
 import { HttpError } from '../../common/api/http.js';
 import { goalThemeAt } from './goalThemes.js';
 
+/**
+ * Keep `completedAt` in sync with saved/target on a hydrated goal doc (does NOT
+ * save). Sets it the first time saved >= target; clears it if saved drops back
+ * below target (e.g. a contribution was deleted). Returns true if it crossed
+ * INTO completion on this call (so callers can flag a celebration).
+ */
+function syncCompletion(goal) {
+  const reached = goal.saved >= goal.target;
+  if (reached && !goal.completedAt) {
+    goal.completedAt = new Date();
+    return true;
+  }
+  if (!reached && goal.completedAt) {
+    goal.completedAt = null;
+  }
+  return false;
+}
+
 /** Active goals for a user, newest intent first (by order then recency). */
 export function listGoals(userId) {
   return Goal.find({ userId, isActive: true }).sort({ order: 1, createdAt: 1 }).lean();
@@ -41,6 +59,7 @@ export async function updateGoal(userId, id, patch) {
   if (patch.saved !== undefined) goal.saved = Math.max(0, patch.saved);
   if (patch.addAmount !== undefined) goal.saved = Math.max(0, goal.saved + patch.addAmount);
 
+  syncCompletion(goal); // target/saved edits can flip completion either way
   await goal.save();
   return goal.toObject();
 }
@@ -65,6 +84,7 @@ export async function applyGoalForTransaction(userId, txnId) {
   const goal = await Goal.findOne({ _id: txn.goalId, userId, isActive: true });
   if (!goal) return; // goal removed — nothing to credit
   goal.saved = Math.max(0, goal.saved + txn.amount);
+  syncCompletion(goal); // mark completedAt the first time it reaches 100%
   await goal.save();
   txn.goalApplied = true;
   await txn.save();
@@ -77,6 +97,7 @@ export async function reverseGoalForTransaction(userId, txnId) {
   const goal = await Goal.findOne({ _id: txn.goalId, userId, isActive: true });
   if (goal) {
     goal.saved = Math.max(0, goal.saved - txn.amount);
+    syncCompletion(goal); // dropping below target clears completedAt
     await goal.save();
   }
   txn.goalApplied = false;

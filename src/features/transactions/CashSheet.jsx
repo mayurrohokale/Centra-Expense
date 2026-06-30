@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { api } from '../../common/lib/api.js';
 import { FONT, COLOR } from '../../common/theme/tokens.js';
-import { inr } from '../../common/lib/format.js';
+import { inr, inrBalance } from '../../common/lib/format.js';
 import Sheet from '../../common/ui/Sheet.jsx';
 
 const CHIPS = [100, 500, 1000, 2000];
@@ -57,7 +57,7 @@ export default function CashSheet({ open, onClose, cash, onDone }) {
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10, color: COLOR.mutedSoft, letterSpacing: '.4px' }}>IN HAND</div>
-          <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 22, color: '#1FAE63', letterSpacing: '-.5px' }}>{inr(cash.balance)}</div>
+          <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 22, color: '#1FAE63', letterSpacing: '-.5px' }}>{inrBalance(cash.balance)}</div>
         </div>
       </div>
 

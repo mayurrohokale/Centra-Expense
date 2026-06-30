@@ -5,6 +5,16 @@ export function inr(n) {
   return '₹' + v.toLocaleString('en-IN');
 }
 
+/**
+ * Balance formatter that NEVER shows a negative figure — clamps the displayed
+ * value at ₹0. The stored balance stays honest (an email-driven computed balance
+ * could theoretically go negative if the starting balance was off); we only
+ * clamp the DISPLAY so the UI never shows "-₹X". Use for account balances.
+ */
+export function inrBalance(n) {
+  return inr(Math.max(0, Number(n || 0)));
+}
+
 /** Signed amount with ₹, e.g. credit → "+₹8,000", debit → "-₹420". */
 export function signedInr(amount, direction) {
   const sign = direction === 'credit' ? '+' : '-';

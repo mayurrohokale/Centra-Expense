@@ -25,6 +25,11 @@ const goalSchema = new Schema(
     bg: { type: String, default: 'linear-gradient(120deg,#F4ECFF,#E9DBFF)' },
     border: { type: String, default: '#ddc9fb' },
 
+    // First time the goal reached 100% (saved >= target). Set when a contribution
+    // crosses the line; cleared if it later drops back below target (e.g. a
+    // contribution is deleted). Drives the COMPLETED section + celebration.
+    completedAt: { type: Date, default: null },
+
     order: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
   },

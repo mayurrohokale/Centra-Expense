@@ -4,7 +4,7 @@ import { api } from '../../common/lib/api.js';
 import { useApi } from '../../common/hooks/useApi.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { FONT, COLOR, GRADIENT, CARD } from '../../common/theme/tokens.js';
-import { inr, ordinal } from '../../common/lib/format.js';
+import { inr, inrBalance, ordinal } from '../../common/lib/format.js';
 import { Loading, ErrorState } from '../../common/ui/States.jsx';
 import Sheet from '../../common/ui/Sheet.jsx';
 import EditProfileSheet from './EditProfileSheet.jsx';
@@ -200,7 +200,7 @@ export default function Profile() {
                 <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft }}>
                   {a.type === 'cash' ? 'Cash wallet' : [a.institution, a.last4 ? `•••• ${a.last4}` : null].filter(Boolean).join(' · ') || 'Bank account'}
                 </div>
-                <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink, marginTop: 4, letterSpacing: '-.3px' }}>{inr(a.balance)}</div>
+                <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink, marginTop: 4, letterSpacing: '-.3px' }}>{inrBalance(a.balance)}</div>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                 <div onClick={() => setAccountForm({ open: true, account: a })} style={{ padding: '6px 12px', borderRadius: 11, background: '#f4eefb', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 11.5, color: '#7a5fc0', cursor: 'pointer', textAlign: 'center' }}>Edit</div>

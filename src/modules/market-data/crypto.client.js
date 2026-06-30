@@ -54,7 +54,7 @@ export async function getCryptoPrices() {
       const price = typeof row.usd === 'number' ? row.usd : null;
       const change = typeof row.usd_24h_change === 'number' ? row.usd_24h_change : null;
       return {
-        tag: c.tag, name: c.name, bg: c.bg, symbol: c.symbol,
+        id: c.id, tag: c.tag, name: c.name, bg: c.bg, symbol: c.symbol,
         priceUsd: price,
         change24h: change == null ? null : Number(change.toFixed(2)),
       };
@@ -67,6 +67,48 @@ export async function getCryptoPrices() {
     if (cache) return cache.value; // serve stale rather than nothing
     return [];
   }
+}
+
+// Spot-price cache for ARBITRARY coin ids (used to value manual crypto
+// holdings). Keyed per id so different holdings share fetches.
+const spotCache = new Map(); // id -> { usd, expiresAt }
+const SPOT_TTL_MS = 45 * 1000;
+
+/**
+ * USD spot price for a set of CoinGecko ids → { [id]: number|null }. Cached per
+ * id (~45s). On failure for an id, serves the last cached value or null. Never
+ * throws — callers fall back to cost/last value.
+ */
+export async function getSpotPricesForIds(ids = []) {
+  const wanted = [...new Set(ids.filter(Boolean).map((s) => String(s).toLowerCase()))];
+  const out = {};
+  const stale = [];
+  for (const id of wanted) {
+    const hit = spotCache.get(id);
+    if (hit && hit.expiresAt > Date.now()) out[id] = hit.usd;
+    else stale.push(id);
+  }
+  if (stale.length === 0) return out;
+
+  try {
+    const json = await httpGetJson(
+      `${BASE}/simple/price?ids=${encodeURIComponent(stale.join(','))}&vs_currencies=usd`,
+      { timeoutMs: 9000 }
+    );
+    for (const id of stale) {
+      const usd = typeof json?.[id]?.usd === 'number' ? json[id].usd : null;
+      if (usd != null) {
+        spotCache.set(id, { usd, expiresAt: Date.now() + SPOT_TTL_MS });
+        out[id] = usd;
+      } else {
+        out[id] = spotCache.get(id)?.usd ?? null; // keep stale if we had it
+      }
+    }
+  } catch (err) {
+    logger.warn(`CoinGecko spot batch failed: ${err?.message || 'error'}`);
+    for (const id of stale) out[id] = spotCache.get(id)?.usd ?? null;
+  }
+  return out;
 }
 
 // Range → CoinGecko market_chart `days`. 24h/7d/30d per the product spec.

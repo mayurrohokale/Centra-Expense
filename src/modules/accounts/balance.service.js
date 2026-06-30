@@ -20,6 +20,13 @@ function signedDelta(txn) {
   return txn.direction === 'credit' ? txn.amount : -txn.amount;
 }
 
+/** Current stored balance of an account (₹), or 0 if not found. */
+export async function getAccountBalance(userId, accountId) {
+  if (!accountId) return 0;
+  const acct = await Account.findOne({ _id: accountId, userId }).select('balance name').lean();
+  return acct ? { balance: acct.balance || 0, name: acct.name || 'account' } : null;
+}
+
 /**
  * Adjust one account's running balance by `delta`. `trackSpend` controls whether
  * a cash outflow bumps the wallet's "spent this month" — true for real spending,

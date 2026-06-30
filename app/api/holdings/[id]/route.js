@@ -15,6 +15,14 @@ const patchSchema = z.object({
   currentValue: z.number().nonnegative().optional(),
   units: z.number().optional(),
   interestRate: z.number().optional(),
+  // Crypto + FD manual fields (editable).
+  coinId: z.string().optional(),
+  buyPriceUsd: z.number().nonnegative().optional(),
+  purchaseDate: z.string().datetime().optional(),
+  principal: z.number().nonnegative().optional(),
+  fdStartDate: z.string().datetime().optional(),
+  maturityDate: z.string().datetime().optional(),
+  creditAccountId: z.string().optional(),
 });
 
 // Edit a manual holding (the service blocks editing auto-synced ones).

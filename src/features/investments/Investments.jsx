@@ -3,12 +3,15 @@ import { useState } from 'react';
 import { api } from '../../common/lib/api.js';
 import { useApi } from '../../common/hooks/useApi.js';
 import { FONT, COLOR, GRADIENT } from '../../common/theme/tokens.js';
-import { inr } from '../../common/lib/format.js';
+import { inr, fmtPrice, dayMonth } from '../../common/lib/format.js';
 import { ErrorState } from '../../common/ui/States.jsx';
 import { InvestmentsSkeleton } from '../../common/ui/Skeleton.jsx';
 import Sheet from '../../common/ui/Sheet.jsx';
 import ConsentView from './ConsentView.jsx';
 import AddHoldingSheet from './AddHoldingSheet.jsx';
+
+// Currency-aware money format for a holding (crypto = $, else ₹).
+const money = (h, v) => (h?.currency === 'USD' ? fmtPrice(v, 'USD') : inr(v));
 
 const SECTIONS = [
   { type: 'mutual_fund', emoji: '📊', title: 'Mutual Funds' },
@@ -71,8 +74,10 @@ export default function Investments() {
   const all = holdings.data || [];
   const port = portfolio.data || { current: 0, invested: 0, returns: 0, allocation: {} };
   const manual = all.filter((h) => h.source === 'manual');
-  const manualInvested = manual.reduce((s, h) => s + h.investedValue, 0);
-  const manualCurrent = manual.reduce((s, h) => s + h.currentValue, 0);
+  // Header total sums only ₹ holdings (crypto is in USD and shown per-card) to
+  // avoid a misleading mixed-currency sum. The portfolio card has the full ₹ rollup.
+  const manualHasCrypto = manual.some((h) => h.currency === 'USD');
+  const manualCurrentInr = manual.filter((h) => h.currency !== 'USD').reduce((s, h) => s + h.currentValue, 0);
 
   const refreshHoldings = () => { holdings.refetch(); portfolio.refetch(); };
 
@@ -162,7 +167,7 @@ export default function Investments() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 4px 12px' }}>
           <span style={{ fontSize: 18 }}>✍️</span>
           <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 17, color: COLOR.ink, letterSpacing: '-.2px' }}>Manual investments</span>
-          {manual.length > 0 && <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.mutedSoft, marginLeft: 'auto', letterSpacing: '-.2px' }}>{inr(manualCurrent)}</span>}
+          {manual.length > 0 && <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.mutedSoft, marginLeft: 'auto', letterSpacing: '-.2px' }}>{inr(manualCurrentInr)}{manualHasCrypto ? ' + crypto' : ''}</span>}
         </div>
 
         {manual.length === 0 ? (
@@ -175,28 +180,44 @@ export default function Investments() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
             {manual.map((h) => {
-              const hasCurrent = h.currentValue != null && h.currentValue !== h.investedValue;
+              const isCrypto = h.instrumentType === 'crypto';
+              const isFd = h.instrumentType === 'fd';
               const pl = h.currentValue - h.investedValue;
               const up = pl >= 0;
               const plColor = up ? '#16a34a' : '#FF6B5E';
+              const plPct = h.investedValue > 0 ? ((pl / h.investedValue) * 100).toFixed(1) : null;
+              const hasPL = (isCrypto || (h.currentValue != null && h.currentValue !== h.investedValue));
               return (
                 <div key={h._id} style={{ borderRadius: 22, padding: '15px 17px', background: '#fff', boxShadow: '0 10px 22px rgba(90,70,130,.07)', border: '1.5px solid #f1ecf6' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
                     <div style={{ width: 42, height: 42, borderRadius: 13, background: h.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 14, color: '#fff' }}>{h.tag}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.name}</div>
-                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 3, flexWrap: 'wrap' }}>
                         <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 9.5, letterSpacing: '.3px', padding: '2px 8px', borderRadius: 10, background: '#F2ECFC', color: '#7a5fc0' }}>{TYPE_LABEL[h.instrumentType] || 'Other'}</span>
-                        <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 9.5, letterSpacing: '.3px', padding: '2px 8px', borderRadius: 10, background: '#FFF4DB', color: '#9b7d12' }}>✍️ Manual</span>
+                        {isCrypto && <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 9.5, letterSpacing: '.3px', padding: '2px 8px', borderRadius: 10, background: h.priceStale ? '#FFF4DB' : '#EAF7EF', color: h.priceStale ? '#9b7d12' : '#1FAE63' }}>{h.priceStale ? 'PRICE STALE' : '$ LIVE'}</span>}
+                        {isFd && h.maturedCredited && <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 9.5, letterSpacing: '.3px', padding: '2px 8px', borderRadius: 10, background: '#EAF7EF', color: '#1FAE63' }}>✓ MATURED · CREDITED</span>}
+                        {!isCrypto && !isFd && <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 9.5, letterSpacing: '.3px', padding: '2px 8px', borderRadius: 10, background: '#FFF4DB', color: '#9b7d12' }}>✍️ Manual</span>}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink, letterSpacing: '-.3px' }}>{inr(h.currentValue)}</div>
-                      {hasCurrent && <div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11, color: plColor }}>{up ? '+' : '-'}{inr(Math.abs(pl))}</div>}
+                      <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink, letterSpacing: '-.3px' }}>{money(h, h.currentValue)}</div>
+                      {hasPL && <div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11, color: plColor }}>{up ? '+' : '-'}{money(h, Math.abs(pl))}{plPct != null ? ` (${up ? '+' : ''}${plPct}%)` : ''}</div>}
                     </div>
                   </div>
+                  {/* Type-specific detail line */}
+                  {isCrypto && (
+                    <div style={{ marginTop: 10, fontFamily: FONT.inter, fontWeight: 600, fontSize: 10.5, color: COLOR.mutedSoft }}>
+                      {h.units} {h.tag} · cost {fmtPrice(h.investedValue, 'USD')}{h.spotUsd != null ? ` · spot ${fmtPrice(h.spotUsd, 'USD')}` : ''}{h.purchaseDate ? ` · since ${dayMonth(h.purchaseDate)}` : ''}
+                    </div>
+                  )}
+                  {isFd && (
+                    <div style={{ marginTop: 10, fontFamily: FONT.inter, fontWeight: 600, fontSize: 10.5, color: COLOR.mutedSoft }}>
+                      Principal {inr(h.principal || h.investedValue)} · {h.interestRate}% p.a.{h.fdStartDate ? ` · ${dayMonth(h.fdStartDate)}` : ''}{h.maturityDate ? ` → ${dayMonth(h.maturityDate)}` : ''} · matures ≈ {inr(h.maturityValue || h.currentValue)}
+                    </div>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTop: '1.5px dashed #f1ecf6' }}>
-                    <span style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft }}>Invested {inr(h.investedValue)}</span>
+                    <span style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft }}>{isFd ? 'Deposited' : 'Invested'} {money(h, h.investedValue)}</span>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <span onClick={() => { setEditHolding(h); setAddOpen(true); }} style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 11.5, color: '#7a5fc0', cursor: 'pointer' }}>Edit</span>
                       <span onClick={() => setDelHolding(h)} style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 11.5, color: COLOR.expense, cursor: 'pointer' }}>Delete</span>

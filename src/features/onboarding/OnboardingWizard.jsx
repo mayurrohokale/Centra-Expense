@@ -4,7 +4,7 @@ import { api } from '../../common/lib/api.js';
 import { useApi } from '../../common/hooks/useApi.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { FONT, COLOR, GRADIENT, CARD } from '../../common/theme/tokens.js';
-import { inr, ordinal } from '../../common/lib/format.js';
+import { inr, inrBalance, ordinal } from '../../common/lib/format.js';
 import AccountFormSheet from '../profile/AccountFormSheet.jsx';
 import SalarySheet from '../profile/SalarySheet.jsx';
 
@@ -89,7 +89,7 @@ export default function OnboardingWizard() {
                     <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: COLOR.ink }}>{a.name}</div>
                     <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: COLOR.mutedSoft }}>{a.last4 ? `•••• ${a.last4}` : 'Bank account'}</div>
                   </div>
-                  <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink }}>{inr(a.balance)}</div>
+                  <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: COLOR.ink }}>{inrBalance(a.balance)}</div>
                 </div>
               ))}
               <div onClick={() => setAccountForm(true)} style={{ padding: '15px 16px', borderRadius: 18, background: '#fff', border: '1.5px dashed #cdbff0', textAlign: 'center', fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14, color: '#7a5fc0', cursor: 'pointer' }}>+ Add bank account</div>

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../common/lib/api.js';
 import { FONT, COLOR } from '../../common/theme/tokens.js';
+import { inrBalance } from '../../common/lib/format.js';
 import Sheet from '../../common/ui/Sheet.jsx';
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -61,6 +62,12 @@ export default function TxnSheet({ open, onClose, initialMode = 'expense', accou
 
   const isExpense = mode === 'expense';
   const isTransfer = mode === 'transfer';
+  // Balance guard (Item 1): expense + transfer are outflows from the source
+  // account (accountId). Income is never blocked. Clamp the shown balance at 0.
+  const amtNum = parseFloat(amount) || 0;
+  const sourceAcct = (isExpense || isTransfer) ? accounts.find((a) => a._id === accountId) : null;
+  const availBalance = sourceAcct ? Math.max(0, Number(sourceAcct.balance || 0)) : null;
+  const overBalance = availBalance != null && amtNum > availBalance;
   // Category picker hides 'transfer' (set automatically) and income-only keys.
   const visibleCats = useMemo(
     () => cats.filter((c) => (isExpense
@@ -87,6 +94,11 @@ export default function TxnSheet({ open, onClose, initialMode = 'expense', accou
     setErr('');
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) { setErr('Enter an amount.'); return; }
+    // Balance guard for outflows (expense + transfer source). Server re-validates.
+    if (overBalance) {
+      setErr(`Amount exceeds ${sourceAcct?.name || 'account'} balance (${inrBalance(availBalance)} available).`);
+      return;
+    }
 
     setBusy(true);
     try {
@@ -179,10 +191,18 @@ export default function TxnSheet({ open, onClose, initialMode = 'expense', accou
       {err && <div style={{ marginTop: 12, fontFamily: FONT.inter, fontWeight: 700, fontSize: 12, color: '#d6483b' }}>⚠️ {err}</div>}
 
       {/* amount */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14, padding: '14px 16px', borderRadius: 16, background: '#FBF8F4', border: '1.5px solid #f1ecf6' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14, padding: '14px 16px', borderRadius: 16, background: '#FBF8F4', border: `1.5px solid ${overBalance ? '#ffb4ab' : '#f1ecf6'}` }}>
         <span style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 26, color: COLOR.ink }}>₹</span>
-        <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="0" style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 26, color: COLOR.ink, minWidth: 0, letterSpacing: '-.5px' }} />
+        <input value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))} inputMode="decimal" placeholder="0" style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 26, color: overBalance ? '#d6483b' : COLOR.ink, minWidth: 0, letterSpacing: '-.5px' }} />
       </div>
+      {/* Available-balance hint for outflows (expense + transfer source). */}
+      {availBalance != null && (
+        <div style={{ marginTop: 6, fontFamily: FONT.inter, fontWeight: 700, fontSize: 11, color: overBalance ? '#d6483b' : COLOR.mutedSoft, padding: '0 2px' }}>
+          {overBalance
+            ? `Exceeds ${sourceAcct?.name || 'account'} balance — ${inrBalance(availBalance)} available`
+            : `${inrBalance(availBalance)} available in ${sourceAcct?.name || 'account'}`}
+        </div>
+      )}
 
       {isTransfer ? (
         <>
@@ -247,8 +267,8 @@ export default function TxnSheet({ open, onClose, initialMode = 'expense', accou
         <input type="date" value={date} max={todayInput()} onChange={(e) => setDate(e.target.value)} style={{ flex: 1, padding: '10px 12px', borderRadius: 13, border: '1.5px solid #f1ecf6', background: '#fff', fontFamily: FONT.inter, fontWeight: 600, fontSize: 13, color: COLOR.ink, outline: 'none' }} />
       </div>
 
-      <div onClick={busy ? undefined : submit} style={{ marginTop: 18, padding: 15, borderRadius: 18, background: accentGrad, textAlign: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: '#fff', cursor: 'pointer', opacity: busy ? 0.7 : 1 }}>
-        {busy ? 'Saving…' : isTransfer ? 'Add transfer' : isExpense ? 'Add expense' : 'Add income'}
+      <div onClick={(busy || overBalance) ? undefined : submit} style={{ marginTop: 18, padding: 15, borderRadius: 18, background: overBalance ? '#e7e0f0' : accentGrad, textAlign: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: overBalance ? '#9b94a8' : '#fff', cursor: overBalance ? 'not-allowed' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+        {busy ? 'Saving…' : overBalance ? 'Insufficient balance' : isTransfer ? 'Add transfer' : isExpense ? 'Add expense' : 'Add income'}
       </div>
       <div onClick={close} style={{ marginTop: 9, textAlign: 'center', fontFamily: FONT.inter, fontWeight: 700, fontSize: 13, color: COLOR.mutedSoft, padding: 6, cursor: 'pointer' }}>Cancel</div>
     </Sheet>

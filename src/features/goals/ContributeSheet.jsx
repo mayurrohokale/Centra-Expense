@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../common/lib/api.js';
 import { FONT, COLOR } from '../../common/theme/tokens.js';
-import { inr, dayMonth } from '../../common/lib/format.js';
+import { inr, inrBalance, dayMonth } from '../../common/lib/format.js';
 import Sheet from '../../common/ui/Sheet.jsx';
 import { SkeletonRows } from '../../common/ui/Skeleton.jsx';
 
@@ -49,6 +49,10 @@ export default function ContributeSheet({ open, onClose, goal, onSaved }) {
 
   const amt = parseFloat(amount) || 0;
   const acct = accounts.find((a) => a._id === accountId);
+  // Balance guard (Item 1): a goal contribution is an outflow from the funding
+  // account. Block when it exceeds the available (clamped) balance.
+  const availBalance = acct ? Math.max(0, Number(acct.balance || 0)) : null;
+  const overBalance = availBalance != null && amt > availBalance;
   // Preview reflects that confirmed contributions count now; this one is pending.
   const newSaved = goal.saved + amt;
   const newPct = Math.min(100, Math.round((newSaved / goal.target) * 100));
@@ -59,6 +63,7 @@ export default function ContributeSheet({ open, onClose, goal, onSaved }) {
     setErr('');
     if (amt <= 0) { setErr('Enter an amount to add.'); return; }
     if (!accountId) { setErr('Pick an account to fund from.'); return; }
+    if (overBalance) { setErr(`Amount exceeds ${acct?.name || 'account'} balance (${inrBalance(availBalance)} available).`); return; }
     const isCash = acct?.type === 'cash';
     setBusy(true);
     try {
@@ -123,7 +128,14 @@ export default function ContributeSheet({ open, onClose, goal, onSaved }) {
       </div>
 
       {/* Account picker — same chip style as the add-transaction sheet */}
-      <div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11, color: COLOR.mutedSoft, margin: '16px 2px 8px', letterSpacing: '.4px' }}>FUND FROM</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '16px 2px 8px' }}>
+        <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11, color: COLOR.mutedSoft, letterSpacing: '.4px' }}>FUND FROM</span>
+        {availBalance != null && (
+          <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: overBalance ? '#d6483b' : COLOR.mutedSoft }}>
+            {inrBalance(availBalance)} available
+          </span>
+        )}
+      </div>
       {accounts.length === 0 ? (
         <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 12, color: COLOR.mutedSoft, padding: '2px 2px' }}>Add an account in your profile first.</div>
       ) : (
@@ -153,7 +165,7 @@ export default function ContributeSheet({ open, onClose, goal, onSaved }) {
         </div>
       )}
 
-      <div onClick={busy ? undefined : submit} style={{ marginTop: 18, padding: 15, borderRadius: 18, background: 'linear-gradient(135deg,#2BC4B0,#1FAE63)', textAlign: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: '#fff', cursor: 'pointer', opacity: busy ? 0.7 : 1 }}>{busy ? 'Adding…' : 'Add money'}</div>
+      <div onClick={(busy || overBalance) ? undefined : submit} style={{ marginTop: 18, padding: 15, borderRadius: 18, background: overBalance ? '#e7e0f0' : 'linear-gradient(135deg,#2BC4B0,#1FAE63)', textAlign: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: overBalance ? '#9b94a8' : '#fff', cursor: overBalance ? 'not-allowed' : 'pointer', opacity: busy ? 0.7 : 1 }}>{busy ? 'Adding…' : overBalance ? 'Insufficient balance' : 'Add money'}</div>
 
       {/* Activity log */}
       <div style={{ fontFamily: FONT.inter, fontWeight: 800, fontSize: 11.5, color: COLOR.mutedSoft, letterSpacing: '.5px', margin: '22px 2px 11px' }}>ACTIVITY</div>

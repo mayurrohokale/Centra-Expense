@@ -4,7 +4,11 @@ import { api } from '../../common/lib/api.js';
 import { useApi } from '../../common/hooks/useApi.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { FONT, COLOR, GRADIENT, CARD } from '../../common/theme/tokens.js';
-import { inr, inrCompact } from '../../common/lib/format.js';
+import { inr, inrCompact, inrBalance } from '../../common/lib/format.js';
+
+// Display-clamp a balance at 0 (never show negative). Used for totals so a
+// theoretically-negative computed balance can't drag the total below zero.
+const clamp0 = (n) => Math.max(0, Number(n || 0));
 import { ErrorState } from '../../common/ui/States.jsx';
 import { DashboardSkeleton } from '../../common/ui/Skeleton.jsx';
 import TxnSheet from '../transactions/TxnSheet.jsx';
@@ -65,8 +69,10 @@ export default function Dashboard({ onTab }) {
 
   const banks = (accounts.data || []).filter((a) => a.type === 'bank');
   const cash = (accounts.data || []).find((a) => a.type === 'cash');
-  const bankTotal = banks.reduce((s, b) => s + b.balance, 0);
-  const cashBalance = cash?.balance || 0;
+  // Totals use display-clamped balances so a negative computed balance never
+  // pulls the visible total below the sum of positive accounts.
+  const bankTotal = banks.reduce((s, b) => s + clamp0(b.balance), 0);
+  const cashBalance = clamp0(cash?.balance || 0);
   // Overall total now INCLUDES cash on hand (shown distinctly below).
   const totalBalance = bankTotal + cashBalance;
   const port = portfolio.data || { current: 0, invested: 0, allocation: {} };
@@ -157,7 +163,7 @@ export default function Dashboard({ onTab }) {
                   <div style={{ fontFamily: FONT.inter, fontWeight: 500, fontSize: 11, color: COLOR.mutedSoft }}>•••• {b.last4}</div>
                 </div>
               </div>
-              <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 22, color: COLOR.ink, marginTop: 14, letterSpacing: '-.5px' }}>{inr(b.balance)}</div>
+              <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 22, color: COLOR.ink, marginTop: 14, letterSpacing: '-.5px' }}>{inrBalance(b.balance)}</div>
               {(() => {
                 const m = BALANCE_SOURCE[b.balanceSource] || BALANCE_SOURCE.manual;
                 return (
@@ -190,7 +196,7 @@ export default function Dashboard({ onTab }) {
                   <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11, color: 'rgba(255,255,255,.85)' }}>in hand</div>
                 </div>
               </div>
-              <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 22, marginTop: 14, letterSpacing: '-.5px' }}>{inr(cash.balance)}</div>
+              <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 22, marginTop: 14, letterSpacing: '-.5px' }}>{inrBalance(cash.balance)}</div>
               <div style={{ marginTop: 8, fontFamily: FONT.inter, fontWeight: 700, fontSize: 11, color: 'rgba(255,255,255,.9)' }}>Spent {inr(cash.spentThisMonth)} · Edit ›</div>
             </div>
           </div>

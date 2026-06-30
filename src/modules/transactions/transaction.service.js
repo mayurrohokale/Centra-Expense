@@ -2,8 +2,38 @@ import { Transaction } from './transaction.model.js';
 import { HttpError } from '../../common/api/http.js';
 import { fingerprint } from '../../common/crypto/cryptoService.js';
 import { categorize } from '../email-ingestion/categorize.js';
-import { applyBalanceForTransaction, reverseBalanceForTransaction } from '../accounts/balance.service.js';
+import { applyBalanceForTransaction, reverseBalanceForTransaction, getAccountBalance } from '../accounts/balance.service.js';
 import { applyGoalForTransaction, reverseGoalForTransaction } from '../goals/goal.service.js';
+import { inr } from '../../common/lib/format.js';
+
+/**
+ * Is this a USER-INITIATED outflow we should balance-check? Per product
+ * decision, ONLY block manual/cash entries the user creates — manual expenses,
+ * transfers (the FROM/source account), and goal contributions. Email/AA-synced
+ * rows already happened in the real world, so they are NEVER blocked.
+ */
+function isUserInitiatedOutflow(data) {
+  const userSource = data.source === 'manual' || data.source === 'cash';
+  if (!userSource) return false;
+  return data.direction === 'debit' || data.direction === 'transfer';
+}
+
+/**
+ * Throw a 400 if a user-initiated outflow would exceed the source account's
+ * available balance. `accountId` is the FROM/source account (= accountId for a
+ * debit/transfer). No-op when there's no source account.
+ */
+export async function assertSufficientBalance(userId, { accountId, amount }) {
+  if (!accountId || !(amount > 0)) return;
+  const acct = await getAccountBalance(userId, accountId);
+  if (!acct) return; // account missing — let downstream handle it
+  if (amount > acct.balance) {
+    throw new HttpError(
+      400,
+      `Amount exceeds ${acct.name} balance (${inr(Math.max(0, acct.balance))} available).`
+    );
+  }
+}
 
 /** Build a query from list filters. segment: all|in|out, source, status, q. */
 export async function listTransactions(userId, { segment = 'all', source, status, q } = {}) {
@@ -23,6 +53,16 @@ export function listNeedsReview(userId) {
 }
 
 export async function confirmTransaction(userId, id, patch = {}) {
+  // Re-validate balance at confirm time for user-initiated outflows: the source
+  // balance may have dropped since the draft was created. Email/AA rows are not
+  // blocked. (Read the pending row first so we know its source/direction/amount.)
+  const pending = await Transaction.findOne({ _id: id, userId, status: 'needs_review' })
+    .select('source direction amount accountId')
+    .lean();
+  if (pending && isUserInitiatedOutflow(pending)) {
+    await assertSufficientBalance(userId, { accountId: pending.accountId, amount: pending.amount });
+  }
+
   const update = { status: 'confirmed' };
   // A user-picked category is a manual override — record it as such.
   if (patch.categoryKey) {
@@ -145,6 +185,15 @@ export async function createTransaction(userId, data) {
   if (fp) {
     const existing = await Transaction.findOne({ fingerprint: fp }).lean();
     if (existing) return { transaction: existing, deduped: true };
+  }
+
+  // Block user-initiated outflows (manual/cash debit, transfer, goal funding)
+  // that exceed the source account's available balance. Email/AA rows skip this
+  // — they already happened. Validated at CREATION so the user gets immediate
+  // feedback (and goal contributions, which apply to goal.saved on create, can't
+  // be added beyond the funding account's balance).
+  if (isUserInitiatedOutflow(data)) {
+    await assertSufficientBalance(userId, { accountId: data.accountId, amount: data.amount });
   }
 
   const created = await Transaction.create({ ...data, userId, fingerprint: fp });
