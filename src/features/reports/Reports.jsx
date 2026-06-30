@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { api } from '../../common/lib/api.js';
 import { useApi } from '../../common/hooks/useApi.js';
 import { FONT, COLOR, CARD } from '../../common/theme/tokens.js';
-import { inr, inrCompact } from '../../common/lib/format.js';
+import { inr, inrCompact, dayMonth } from '../../common/lib/format.js';
 import { ErrorState } from '../../common/ui/States.jsx';
 import { ReportsSkeleton } from '../../common/ui/Skeleton.jsx';
 
@@ -48,6 +48,10 @@ export default function Reports({ onBack }) {
       : { period }),
     [period, customReady ? from : '', customReady ? to : '']
   );
+
+  // Salary status (current month only) — surfaced so the income figure is
+  // clearly attributed. Loaded independently; never blocks the report.
+  const salary = useApi(api.getSalaryStatus, []);
 
   if (rep.loading && !rep.data) return <ReportsSkeleton />;
   if (rep.error) return <ErrorState error={rep.error} onRetry={rep.refetch} />;
@@ -130,6 +134,26 @@ export default function Reports({ onBack }) {
           </div>
         </div>
       </div>
+
+      {/* Salary attribution (current month only) */}
+      {period === 'this_month' && salary.data?.configured && (
+        <div style={{ marginTop: 12, borderRadius: 18, padding: '13px 16px', background: salary.data.credited ? 'linear-gradient(120deg,#E9FBF3,#D6F5E8)' : '#fff', border: `1.5px solid ${salary.data.credited ? '#c5efdc' : '#f1ecf6'}`, display: 'flex', alignItems: 'center', gap: 11 }}>
+          <span style={{ fontSize: 18 }}>💼</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13, color: COLOR.ink }}>
+              {salary.data.credited ? `Salary received · ${inr(salary.data.creditedAmount)}` : `Salary pending · ${inr(salary.data.expectedAmount)}`}
+            </div>
+            <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 10.5, color: COLOR.mutedSoft, marginTop: 1 }}>
+              {salary.data.credited
+                ? `Included in income${salary.data.creditedDate ? ` · ${dayMonth(salary.data.creditedDate)}` : ''}`
+                : 'Not yet counted in this month’s income'}
+            </div>
+          </div>
+          <span style={{ fontFamily: FONT.inter, fontWeight: 800, fontSize: 9.5, letterSpacing: '.3px', padding: '3px 9px', borderRadius: 11, background: salary.data.credited ? '#fff' : '#FFF4DB', color: salary.data.credited ? '#1FAE63' : '#9b7d12' }}>
+            {salary.data.credited ? '✅ RECEIVED' : 'PENDING'}
+          </span>
+        </div>
+      )}
 
       {empty ? (
         <div style={{ ...CARD, borderRadius: 24, padding: '34px 20px', textAlign: 'center', marginTop: 16 }}>

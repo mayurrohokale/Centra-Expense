@@ -36,11 +36,16 @@ const userSchema = new Schema(
     phone: { type: String, default: '' },
     avatarColor: { type: String, default: '' },
 
-    // Monthly salary — feeds the Transactions "upcoming salary" card.
-    // payDay is the day-of-month (1–31) the salary lands; null until set.
+    // Monthly salary — feeds the "upcoming salary" card AND the salary-tracking
+    // feature (auto-detect + manual "credited" tick + per-month status).
+    // - amount  : expected monthly salary (₹)
+    // - payDay  : expected credit day-of-month (1–31; 31 ≈ month-end via clamp)
+    // - accountId: the designated SALARY ACCOUNT (one at a time). Salary credits
+    //   land here; auto-detect only matches credits on this account.
     salary: {
       amount: { type: Number, default: 0, min: 0 },
       payDay: { type: Number, default: null, min: 1, max: 31 },
+      accountId: { type: Schema.Types.ObjectId, ref: 'Account', default: null },
     },
 
     // In-app daily reminder to add transactions. When enabled, the app shows a

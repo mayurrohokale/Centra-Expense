@@ -34,6 +34,10 @@ export const api = {
   changePassword: (body) => request('/auth/change-password', { method: 'POST', body: JSON.stringify(body) }),
   finishOnboarding: (action = 'complete') => request('/auth/onboarding', { method: 'POST', body: JSON.stringify({ action }) }),
 
+  // salary tracking
+  getSalaryStatus: () => request('/salary/status'),
+  markSalaryCredited: (body = {}) => request('/salary/mark-credited', { method: 'POST', body: JSON.stringify(body) }),
+
   // accounts
   getAccounts: () => request('/accounts'),
   createAccount: (body) => request('/accounts', { method: 'POST', body: JSON.stringify(body) }),

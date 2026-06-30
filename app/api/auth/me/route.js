@@ -23,6 +23,8 @@ const patchSchema = z.object({
     .object({
       amount: z.number().min(0, 'Amount must be positive').max(1_000_000_000),
       payDay: z.number().int().min(1).max(31),
+      // Designated salary account (Mongo ObjectId string) or null/empty to clear.
+      accountId: z.string().optional().nullable(),
     })
     .optional(),
   reminderEnabled: z.boolean().optional(),

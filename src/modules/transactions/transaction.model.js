@@ -69,6 +69,13 @@ const transactionSchema = new Schema(
     recurring: { type: Boolean, default: false, index: true },
     frequency: { type: String, enum: ['monthly'], default: 'monthly' },
 
+    // Salary marker. `isSalary:true` on an income (credit) row = the monthly
+    // salary credit on the user's salary account, whether auto-detected from a
+    // bank email or recorded via the manual "Salary credited" tick. The month is
+    // considered credited if such a row exists in that calendar month (no
+    // separate per-month collection — idempotency is by this query).
+    isSalary: { type: Boolean, default: false, index: true },
+
     // Per-bank balance tracking (Feature B).
     // availableBalance = the authoritative "Avl Bal" parsed from the alert (if
     // any) → sets the account balance directly when this txn is confirmed.

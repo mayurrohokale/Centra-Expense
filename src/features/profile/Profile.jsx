@@ -130,6 +130,14 @@ export default function Profile() {
         <div style={{ borderRadius: 22, padding: 18, background: 'linear-gradient(120deg,#E9FBF3,#D6F5E8)', border: '1.5px solid #c5efdc' }}>
           <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 26, color: '#13795f', letterSpacing: '-.6px' }}>{inr(salary.amount)}</div>
           <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 12.5, color: '#3a8a74', marginTop: 3 }}>Paid on the {ordinal(salary.payDay)} of every month</div>
+          {(() => {
+            const acct = (accounts.data || []).find((a) => String(a._id) === String(salary.accountId));
+            return (
+              <div style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 11.5, color: '#13795f', marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,.6)', borderRadius: 12, padding: '4px 10px' }}>
+                🏦 {acct ? `${acct.name}${acct.last4 ? ` ••${acct.last4}` : ''}` : 'No account set — tap Edit'}
+              </div>
+            );
+          })()}
         </div>
       ) : (
         <div onClick={() => setSalaryOpen(true)} style={{ borderRadius: 22, padding: 18, ...CARD, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13 }}>

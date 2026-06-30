@@ -1,5 +1,7 @@
 import { Account } from '../accounts/account.model.js';
+import { User } from '../users/user.model.js';
 import { createTransaction, recategorizeUncategorized } from '../transactions/transaction.service.js';
+import { looksLikeSalary, findSalaryTxnForMonth } from '../salary/salary.service.js';
 import * as connections from '../connections/connection.service.js';
 import { fingerprint } from '../../common/crypto/cryptoService.js';
 import { logger } from '../../common/logger/logger.js';
@@ -78,6 +80,15 @@ export async function ingestEmails(userId, emails) {
   const summary = { total: emails.length, created: 0, duplicate: 0, failed: 0 };
   const cache = {};
 
+  // Salary auto-detect context: the designated salary account + expected amount.
+  // A credit on this account that looks like salary (keyword or amount within
+  // tolerance) is tagged isSalary — but only if the month isn't already credited.
+  const salaryUser = await User.findById(userId).select('salary').lean();
+  const salaryCfg = {
+    accountId: salaryUser?.salary?.accountId ? String(salaryUser.salary.accountId) : null,
+    amount: salaryUser?.salary?.amount || 0,
+  };
+
   for (const email of emails) {
     const { bank, draft, reason, path } = await parseEmail(email);
     if (!draft) {
@@ -112,6 +123,25 @@ export async function ingestEmails(userId, emails) {
         }
       }
 
+      // SALARY AUTO-DETECT: a CREDIT on the designated salary account that looks
+      // like salary (keyword or amount within ±15%) is tagged as the month's
+      // salary — but only if that month isn't already credited (idempotency, so
+      // a second matching credit in the same month is NOT also tagged). Tagging
+      // forces categoryKey 'income' so it lands in income, never as spend.
+      let salaryTag = {};
+      if (
+        salaryCfg.accountId
+        && String(account._id) === salaryCfg.accountId
+        && draft.direction === 'credit'
+        && looksLikeSalary({ amount: draft.amount, merchant: draft.merchant }, salaryCfg.amount)
+      ) {
+        const already = await findSalaryTxnForMonth(userId, new Date(draft.occurredAt));
+        if (!already) {
+          salaryTag = { isSalary: true, categoryKey: 'income', categorySource: 'merchant-rule', icon: '💼', iconBg: '#EAF7EF' };
+          logger.info(`[gmail-sync] ${bank.name}: tagged credit ₹${draft.amount} as SALARY for ${new Date(draft.occurredAt).toISOString().slice(0, 7)}.`);
+        }
+      }
+
       const fp = fingerprint([
         userId.toString(), bank.key, draft.last4 || '', draft.amount,
         new Date(draft.occurredAt).toISOString(), draft.direction, draft.merchant,
@@ -135,6 +165,7 @@ export async function ingestEmails(userId, emails) {
         availableBalance,
         balanceAsOf: availableBalance != null ? draft.occurredAt : null,
         fingerprint: fp,
+        ...salaryTag,
       });
 
       if (deduped) summary.duplicate += 1;

@@ -10,6 +10,7 @@ import { DashboardSkeleton } from '../../common/ui/Skeleton.jsx';
 import TxnSheet from '../transactions/TxnSheet.jsx';
 import CashSheet from '../transactions/CashSheet.jsx';
 import AccountEditSheet from './AccountEditSheet.jsx';
+import SalaryCard from './SalaryCard.jsx';
 
 const INVEST_COLORS = { mutual_fund: '#2BC4B0', crypto: '#A78BFA', fd: '#FFC247' };
 
@@ -135,6 +136,9 @@ export default function Dashboard({ onTab }) {
           <span style={{ fontFamily: FONT.inter, fontWeight: 800, fontSize: 13, color: COLOR.purple }}>Set up ›</span>
         </div>
       )}
+
+      {/* SALARY — this-month status (auto-detected or manual tick) */}
+      <SalaryCard onChanged={() => { refreshAccounts(); me.refetch(); }} />
 
       {/* BANK CARDS */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '24px 4px 12px' }}>

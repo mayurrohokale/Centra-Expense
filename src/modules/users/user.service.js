@@ -28,6 +28,8 @@ export async function updateProfile(userId, patch) {
     update.salary = {
       amount: patch.salary.amount,
       payDay: patch.salary.payDay,
+      // accountId is optional — null clears the designated salary account.
+      accountId: patch.salary.accountId || null,
     };
   }
 
