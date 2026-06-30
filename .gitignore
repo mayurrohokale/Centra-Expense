@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Environment files (NEVER commit secrets, tokens, or connection strings)
+# .env.example IS committed as a safe placeholder template.
+.env
+.env.local
+.env.*.local
+.env.*.bak
+.env.bak
+*.bak
+
+# Build / misc output
+build/
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vercel
+.vercel
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude Code local-only settings (machine-specific permission allowlist)
+.claude/settings.local.json

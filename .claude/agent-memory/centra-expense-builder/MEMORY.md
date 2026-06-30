@@ -1,0 +1,8 @@
+- [Design Tokens & Screens](design-tokens.md) — confirmed fonts/colors/radii/source-badges and the 7 screen groups from the imported prototype
+- [Seed Data Reference](seed-data-reference.md) — Indian banks/merchants/holdings/goals baked into the prototype, to mirror in the backend seed
+- [Milestone 1 Status](milestone-1-status.md) — M1 built & verified, then MIGRATED to a single Next.js 14 App Router app (Vercel); deviations, design conflicts, cached-Mongoose/503/seed notes, real MFAPI scheme codes
+- [Email Pipe Status](email-pipe-status.md) — Gmail read-only OAuth + per-bank regex parsers (HDFC/ICICI/SBI/Axis/Kotak) + dedupe + simulate + Vercel cron; built & verified; single-inbox design deviation
+- [Profile Feature](profile-feature.md) — view/edit profile + salary setup + account CRUD; User schema (phone/salary/avatarColor/onboarding); salary feeds Transactions; + first-run onboarding wizard & dashboard zero-state
+- [Goals Feature](goals-feature.md) — real user-owned `goals` collection (CRUD + contribute + quick-add suggestions), replaced static Discover goals
+- [Live Market Data](live-market-data.md) — Discover crypto/stocks/MF now realtime from public APIs (CoinGecko/Yahoo/MFAPI); + dev `.next` build gotcha
+- [Balance & Skeletons](balance-and-skeletons.md) — per-bank balance (email-authoritative + computed, idempotent on confirm via balanceApplied) + app-wide Skeleton loaders
