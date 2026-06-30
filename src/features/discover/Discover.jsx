@@ -11,19 +11,28 @@ import LiveCrypto from '../market/LiveCrypto.jsx';
 import StocksBoard from '../market/StocksBoard.jsx';
 import TrendingFunds from '../market/TrendingFunds.jsx';
 import InstrumentDetail from '../market/InstrumentDetail.jsx';
+import CryptoDetail from '../market/CryptoDetail.jsx';
+
+// A Yahoo-style crypto symbol looks like "BTC-USD"; search results also pass a
+// type hint. Either signal routes the instrument to the CoinGecko crypto chart.
+const isCryptoInstrument = (symbol, type) =>
+  type === 'crypto' || (typeof symbol === 'string' && /-USD$/i.test(symbol));
 
 export default function Discover() {
   const { logout } = useAuth();
   // Selected instrument (stock/crypto) → renders the chart detail page in place.
-  const [detail, setDetail] = useState(null); // { symbol, name } | null
-  const openInstrument = (symbol, name) => setDetail({ symbol, name });
+  const [detail, setDetail] = useState(null); // { symbol, name, crypto } | null
+  const openInstrument = (symbol, name, type) =>
+    setDetail({ symbol, name, crypto: isCryptoInstrument(symbol, type) });
 
   // Curated FD rates still come from the discover endpoint (no public FD API);
   // crypto/stocks/funds are now live from public APIs in their own components.
   const { data, loading, error, refetch } = useApi(api.getDiscover, []);
 
   if (detail) {
-    return <InstrumentDetail symbol={detail.symbol} name={detail.name} onBack={() => setDetail(null)} />;
+    return detail.crypto
+      ? <CryptoDetail id={detail.symbol} name={detail.name} onBack={() => setDetail(null)} />
+      : <InstrumentDetail symbol={detail.symbol} name={detail.name} onBack={() => setDetail(null)} />;
   }
 
   if (loading) return <DiscoverSkeleton />;

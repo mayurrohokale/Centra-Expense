@@ -108,6 +108,9 @@ export default function Dashboard({ onTab }) {
             <span style={{ background: 'rgba(255,255,255,.22)', color: '#fff', fontFamily: FONT.jakarta, fontWeight: 600, fontSize: 10.5, padding: '2px 8px', borderRadius: 20 }}>{banks.length} accounts</span>
           </div>
           <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, color: '#fff', fontSize: 42, lineHeight: 1.02, marginTop: 6, letterSpacing: '-1.2px', textShadow: '0 4px 14px rgba(120,40,90,.25)' }}>{inr(totalBalance)}</div>
+          {cashBalance > 0 && (
+            <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 11.5, color: 'rgba(255,255,255,.82)', marginTop: 4 }}>incl. {inr(cashBalance)} cash</div>
+          )}
           {hasBanks || cashBalance > 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 13, flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'rgba(255,255,255,.2)', borderRadius: 20, padding: '4px 11px', fontFamily: FONT.inter, fontWeight: 700, fontSize: 11.5, color: '#fff' }}>🏦 {inr(bankTotal)} bank</span>

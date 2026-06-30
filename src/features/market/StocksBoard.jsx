@@ -58,8 +58,9 @@ export default function StocksBoard({ onOpen }) {
     return () => { active = false; clearTimeout(t); };
   }, [q]);
 
-  // Open the chart detail page for a symbol (and clear the search).
-  const open = (sym, name) => { setResults([]); setQ(''); onOpen?.(sym, name); };
+  // Open the chart detail page for a symbol (and clear the search). `type` (from
+  // a search result) lets crypto route to the CoinGecko chart.
+  const open = (sym, name, type) => { setResults([]); setQ(''); onOpen?.(sym, name, type); };
 
   const card = { borderRadius: 24, background: '#fff', boxShadow: '0 10px 22px rgba(90,70,130,.07)', border: '1.5px solid #f1ecf6', overflow: 'hidden' };
 
@@ -82,7 +83,7 @@ export default function StocksBoard({ onOpen }) {
           {results.map((r) => {
             const pill = TYPE_PILL[r.type] || TYPE_PILL.equity;
             return (
-              <div key={r.symbol} onClick={() => open(r.symbol, r.name)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 16px', borderBottom: '1.5px solid #f6f2fa', cursor: 'pointer' }}>
+              <div key={r.symbol} onClick={() => open(r.symbol, r.name, r.type)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '12px 16px', borderBottom: '1.5px solid #f6f2fa', cursor: 'pointer' }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <span style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 13.5, color: COLOR.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>

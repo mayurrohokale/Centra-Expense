@@ -6,11 +6,12 @@ import { FONT, COLOR } from '../../common/theme/tokens.js';
 import { fmtPrice, fmtPct } from '../../common/lib/format.js';
 import LiveBadge from './LiveBadge.jsx';
 
-// Realtime crypto prices (CoinGecko), refreshed every 60s while the tab is
-// visible. Server caches 60s, so polling never hammers the upstream API.
+// Realtime crypto prices (CoinGecko), refreshed every 45s while the tab is
+// visible (and on tab focus). Server caches ~45s, so polling never hammers the
+// upstream API.
 export default function LiveCrypto({ onOpen }) {
   const { data, loading, refetch } = useApi(api.getCrypto, []);
-  usePoll(refetch, 60000);
+  usePoll(refetch, 45000);
 
   const coins = data || [];
 
@@ -30,7 +31,7 @@ export default function LiveCrypto({ onOpen }) {
           {coins.map((c) => {
             const up = (c.change24h ?? 0) >= 0;
             return (
-              <div key={c.tag} onClick={() => onOpen?.(c.symbol, c.name)} style={{ flex: '0 0 auto', width: 152, borderRadius: 22, padding: 16, background: c.bg, color: '#fff', cursor: onOpen ? 'pointer' : 'default' }}>
+              <div key={c.tag} onClick={() => onOpen?.(c.symbol, c.name, 'crypto')} style={{ flex: '0 0 auto', width: 152, borderRadius: 22, padding: 16, background: c.bg, color: '#fff', cursor: onOpen ? 'pointer' : 'default' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                   <div style={{ width: 34, height: 34, borderRadius: 11, background: 'rgba(255,255,255,.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 12 }}>{c.tag}</div>
                   <div style={{ fontFamily: FONT.jakarta, fontWeight: 700, fontSize: 14 }}>{c.name}</div>

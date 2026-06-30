@@ -24,13 +24,15 @@ export const PATCH = handle(async (req, ctx) => {
 });
 
 /**
- * Draft-only delete: removes a needs_review transaction. The service HARD
- * blocks deleting a confirmed transaction (400) — this control is for drafts.
+ * Delete a transaction (auth + user-scoped). Works for BOTH drafts and confirmed
+ * rows. For a confirmed row the service reverses its balance effect (debit adds
+ * back, credit subtracts) and undoes any linked goal contribution before
+ * removing the row. The UI gates confirmed deletes behind a confirmation modal.
  */
 export const DELETE = handle(async (req, ctx) => {
   await requireDb();
   const user = await requireAuth();
   const { id } = await ctx.params;
-  const result = await service.deleteDraftTransaction(user._id, id);
+  const result = await service.deleteTransaction(user._id, id);
   return ok({ data: result });
 });

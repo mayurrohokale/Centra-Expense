@@ -75,6 +75,7 @@ export const api = {
   createGoal: (body) => request('/goals', { method: 'POST', body: JSON.stringify(body) }),
   updateGoal: (id, patch) => request(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteGoal: (id) => request(`/goals/${id}`, { method: 'DELETE' }),
+  getGoalContributions: (id) => request(`/goals/${id}/contributions`),
 
   // categories
   getCategories: () => request('/categories'),
@@ -92,6 +93,7 @@ export const api = {
   searchFunds: (q) => request(`/market/search?q=${encodeURIComponent(q)}`),
   // live market data (public APIs)
   getCrypto: () => request('/market/crypto'),
+  getCryptoHistory: (id, range = '7d') => request(`/market/crypto/history?id=${encodeURIComponent(id)}&range=${encodeURIComponent(range)}`),
   getStocks: () => request('/market/stocks'),
   searchStocks: (q) => request(`/market/stocks/search?q=${encodeURIComponent(q)}`),
   getStockQuote: (symbol) => request(`/market/stocks/search?symbol=${encodeURIComponent(symbol)}`),

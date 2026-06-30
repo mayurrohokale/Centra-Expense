@@ -8,6 +8,7 @@ import { inr, signedInr, nextPayDate, dayMonth } from '../../common/lib/format.j
 import { ErrorState } from '../../common/ui/States.jsx';
 import { TransactionsSkeleton } from '../../common/ui/Skeleton.jsx';
 import SourceBadge from '../../common/ui/SourceBadge.jsx';
+import Sheet from '../../common/ui/Sheet.jsx';
 import CategoryBars from './CategoryBars.jsx';
 import CashSheet from './CashSheet.jsx';
 import TxnSheet from './TxnSheet.jsx';
@@ -36,6 +37,8 @@ export default function Transactions() {
   const [txnSheet, setTxnSheet] = useState(null); // null | 'expense' | 'income'
   const [picker, setPicker] = useState(null); // { txn, confirmOnPick }
   const [delId, setDelId] = useState(''); // draft id pending inline delete confirm
+  const [delTxn, setDelTxn] = useState(null); // confirmed txn pending modal delete confirm
+  const [deleting, setDeleting] = useState(false);
 
   const summary = useApi(api.getSummary, []);
   const review = useApi(api.getNeedsReview, []);
@@ -69,10 +72,35 @@ export default function Transactions() {
     refreshAll();
   }
 
-  // Delete a DRAFT only (drafts never moved the balance). Inline-confirmed.
+  // Delete a DRAFT (drafts never moved the balance). Lightweight inline confirm.
   async function deleteDraft(id) {
     try { await api.deleteTransaction(id); }
     finally { setDelId(''); refreshAll(); }
+  }
+
+  // Delete a CONFIRMED transaction (gated by the modal). The server reverses the
+  // balance effect, so we refetch transactions AND accounts after.
+  async function deleteConfirmed() {
+    if (!delTxn || deleting) return;
+    setDeleting(true);
+    try {
+      await api.deleteTransaction(delTxn._id);
+      setDelTxn(null);
+      refreshAll();
+    } catch { /* keep modal open on failure */ } finally { setDeleting(false); }
+  }
+
+  // Phrase the balance-reversal effect for the confirmation modal. A draft never
+  // moved a balance, so deleting it has no reversal effect.
+  function reversalNote(tx) {
+    if (!tx) return '';
+    if (tx.status !== 'confirmed' || !tx.balanceApplied) {
+      return 'This draft hasn’t affected any balance yet.';
+    }
+    const where = tx.accountName || 'the account';
+    return tx.direction === 'debit'
+      ? `This will add ${inr(tx.amount)} back to ${where}.`
+      : `This will subtract ${inr(tx.amount)} from ${where}.`;
   }
 
   const segStyle = (active) => ({
@@ -207,7 +235,14 @@ export default function Transactions() {
                 </div>
                 <div style={{ marginTop: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <SourceBadge source={tx.source} accountName={tx.accountName} />
-                  <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: COLOR.mutedFaint }}>Edit ›</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span style={{ fontFamily: FONT.inter, fontWeight: 700, fontSize: 10.5, color: COLOR.mutedFaint }}>Edit ›</span>
+                    <span
+                      onClick={(e) => { e.stopPropagation(); setDelTxn(tx); }}
+                      title="Delete transaction"
+                      style={{ fontSize: 14, lineHeight: 1, cursor: 'pointer' }}
+                    >🗑</span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -244,6 +279,22 @@ export default function Transactions() {
         onSaved={refreshAll}
       />
       <CashSheet open={cashOpen} onClose={() => setCashOpen(false)} cash={cash} onDone={() => { setCashOpen(false); refreshAll(); }} />
+
+      {/* Confirmed-delete confirmation modal (in-app, never a browser dialog). */}
+      <Sheet open={!!delTxn} onClose={() => (deleting ? null : setDelTxn(null))}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 40 }}>🗑️</div>
+          <div style={{ fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 18, color: COLOR.ink, marginTop: 10 }}>Delete this transaction?</div>
+          {delTxn && (
+            <div style={{ fontFamily: FONT.inter, fontWeight: 600, fontSize: 12.5, color: COLOR.mutedSoft, marginTop: 6, lineHeight: 1.5 }}>
+              <span style={{ color: COLOR.ink, fontWeight: 700 }}>{delTxn.merchant}</span> · {signedInr(delTxn.amount, delTxn.direction)}
+              <br />{reversalNote(delTxn)}
+            </div>
+          )}
+        </div>
+        <div onClick={deleting ? undefined : deleteConfirmed} style={{ marginTop: 20, padding: 15, borderRadius: 18, background: 'linear-gradient(135deg,#FF8A7A,#FF6B5E)', textAlign: 'center', fontFamily: FONT.jakarta, fontWeight: 800, fontSize: 15, color: '#fff', cursor: 'pointer', opacity: deleting ? 0.7 : 1 }}>{deleting ? 'Deleting…' : 'Delete'}</div>
+        <div onClick={() => (deleting ? null : setDelTxn(null))} style={{ marginTop: 9, textAlign: 'center', fontFamily: FONT.inter, fontWeight: 700, fontSize: 13, color: COLOR.mutedSoft, padding: 6, cursor: 'pointer' }}>Cancel</div>
+      </Sheet>
     </div>
   );
 }

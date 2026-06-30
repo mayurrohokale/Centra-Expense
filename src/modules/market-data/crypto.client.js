@@ -8,10 +8,11 @@ import { logger } from '../../common/logger/logger.js';
  */
 
 const BASE = 'https://api.coingecko.com/api/v3';
-const TTL_MS = 60 * 1000;
+const TTL_MS = 45 * 1000; // spot price freshness — matches the client poll cadence
 
 // id → display metadata. `id` is CoinGecko's id; `tag` is the ticker badge;
-// `symbol` is the Yahoo symbol used by the detail page's history chart.
+// `symbol` is a Yahoo-style symbol (kept for search/labels). The detail chart
+// now uses CoinGecko's market_chart keyed by `id`.
 const COINS = [
   { id: 'bitcoin', tag: 'BTC', name: 'Bitcoin', symbol: 'BTC-USD', bg: 'linear-gradient(140deg,#F7931A,#FFB347)' },
   { id: 'ethereum', tag: 'ETH', name: 'Ethereum', symbol: 'ETH-USD', bg: 'linear-gradient(140deg,#627EEA,#8FA2F5)' },
@@ -21,6 +22,21 @@ const COINS = [
   { id: 'cardano', tag: 'ADA', name: 'Cardano', symbol: 'ADA-USD', bg: 'linear-gradient(140deg,#0033AD,#3468dc)' },
   { id: 'dogecoin', tag: 'DOGE', name: 'Dogecoin', symbol: 'DOGE-USD', bg: 'linear-gradient(140deg,#C2A633,#e0c862)' },
 ];
+
+// Map a Yahoo-style crypto symbol (e.g. "BTC-USD") OR a bare ticker/id to a
+// CoinGecko id, so the detail chart can be opened from either the cards (symbol)
+// or a search result.
+const SYMBOL_TO_ID = COINS.reduce((m, c) => {
+  m[c.symbol.toUpperCase()] = c.id;
+  m[c.tag.toUpperCase()] = c.id;
+  m[c.id.toUpperCase()] = c.id;
+  return m;
+}, {});
+export function coinIdForSymbol(symbol) {
+  if (!symbol) return null;
+  const s = String(symbol).toUpperCase();
+  return SYMBOL_TO_ID[s] || (s.endsWith('-USD') ? SYMBOL_TO_ID[s] : null);
+}
 
 let cache = null; // { value, expiresAt }
 
@@ -50,5 +66,66 @@ export async function getCryptoPrices() {
     logger.warn(`CoinGecko price fetch failed: ${err?.message || 'error'}`);
     if (cache) return cache.value; // serve stale rather than nothing
     return [];
+  }
+}
+
+// Range → CoinGecko market_chart `days`. 24h/7d/30d per the product spec.
+const HIST_RANGE = {
+  '24h': { days: 1 },
+  '7d': { days: 7 },
+  '30d': { days: 30 },
+};
+const HIST_TTL_MS = 2 * 60 * 1000; // 2 min — history doesn't need to be as live as spot
+const histCache = new Map(); // key -> { value, expiresAt }
+
+/**
+ * Historical price series for a coin over a range, from CoinGecko's
+ * /coins/{id}/market_chart (prices in USD). Returns:
+ *   { id, name, currency:'USD', price, points:[{t,c}], windowChangePct,
+ *     high, low, updatedAt }
+ * or null on failure. `key` is a CoinGecko id OR a symbol (BTC-USD / BTC).
+ */
+export async function getCryptoHistory(key, rangeKey = '7d') {
+  const id = coinIdForSymbol(key) || (typeof key === 'string' ? key.toLowerCase() : null);
+  if (!id) return null;
+  const meta = COINS.find((c) => c.id === id);
+  const r = HIST_RANGE[rangeKey] || HIST_RANGE['7d'];
+  const cacheKey = `${id}:${rangeKey}`;
+  const hit = histCache.get(cacheKey);
+  if (hit && hit.expiresAt > Date.now()) return hit.value;
+
+  try {
+    const json = await httpGetJson(
+      `${BASE}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=${r.days}`,
+      { timeoutMs: 9000 }
+    );
+    const raw = Array.isArray(json?.prices) ? json.prices : [];
+    const points = raw
+      .filter((p) => Array.isArray(p) && typeof p[1] === 'number')
+      .map((p) => ({ t: p[0], c: Number(p[1]) }));
+    if (points.length < 2) {
+      if (hit) return hit.value; // serve stale rather than nothing
+      return null;
+    }
+    const first = points[0].c;
+    const last = points[points.length - 1].c;
+    const vals = points.map((p) => p.c);
+    const result = {
+      id,
+      name: meta?.name || id,
+      currency: 'USD',
+      price: Number(last.toFixed(last < 1 ? 4 : 2)),
+      windowChangePct: first ? Number((((last - first) / first) * 100).toFixed(2)) : null,
+      high: Number(Math.max(...vals).toFixed(2)),
+      low: Number(Math.min(...vals).toFixed(2)),
+      points,
+      updatedAt: Date.now(),
+    };
+    histCache.set(cacheKey, { value: result, expiresAt: Date.now() + HIST_TTL_MS });
+    return result;
+  } catch (err) {
+    logger.warn(`CoinGecko history failed for ${id} (${rangeKey}): ${err?.message || 'error'}`);
+    if (hit) return hit.value; // serve last cached on failure
+    return null;
   }
 }

@@ -3,6 +3,7 @@ import { HttpError } from '../../common/api/http.js';
 import { fingerprint } from '../../common/crypto/cryptoService.js';
 import { categorize } from '../email-ingestion/categorize.js';
 import { applyBalanceForTransaction, reverseBalanceForTransaction } from '../accounts/balance.service.js';
+import { applyGoalForTransaction, reverseGoalForTransaction } from '../goals/goal.service.js';
 
 /** Build a query from list filters. segment: all|in|out, source, status, q. */
 export async function listTransactions(userId, { segment = 'all', source, status, q } = {}) {
@@ -36,27 +37,48 @@ export async function confirmTransaction(userId, id, patch = {}) {
   // Apply the per-bank balance effect only once, on the needs_review→confirmed
   // transition (the findOneAndUpdate matched, so this is that transition).
   // applyBalance is itself idempotent via the txn's balanceApplied flag.
-  if (confirmed) await applyBalanceForTransaction(userId, confirmed._id);
+  if (confirmed) {
+    await applyBalanceForTransaction(userId, confirmed._id);
+    // If this is a goal-funding contribution, finalize it onto goal.saved now
+    // (idempotent via the txn's goalApplied flag). Until confirmed it only
+    // showed as a pending contribution in the goal's activity log.
+    if (confirmed.goalId) await applyGoalForTransaction(userId, confirmed._id);
+  }
   return confirmed;
 }
 
 /**
- * Delete a DRAFT (needs_review) transaction. This is the draft-only delete
- * control: confirmed transactions are NOT deletable here (returns 400). A draft
- * never applied a balance effect (balanceApplied=false), so no reversal is
- * needed — but as a safety net we reverse first if the flag is somehow set.
+ * Delete a transaction — DRAFT or CONFIRMED (auth + user-scoped).
+ *
+ * Balance reversal: a confirmed transaction has already moved its account
+ * balance (balanceApplied=true), so we reverse that effect before removing the
+ * row — a deleted debit adds the amount back, a deleted credit subtracts it
+ * (reverseBalanceForTransaction). For email-authoritative snapshots an exact
+ * reversal isn't possible, so it does a best-effort computed reversal and the
+ * next sync re-asserts the true value. Drafts never moved a balance, so the
+ * reversal is a no-op for them (guarded by the balanceApplied flag).
+ *
+ * Goal funding: if the row is a goal contribution, undo its effect on the goal
+ * too — a confirmed contribution had been added to goal.saved (goalApplied),
+ * so reverse it; a pending one only lived in the activity log and just vanishes.
+ *
+ * Idempotent: reverse helpers clear balanceApplied / goalApplied, and the row
+ * is then deleted so it can't be reversed twice.
  */
-export async function deleteDraftTransaction(userId, id) {
+export async function deleteTransaction(userId, id) {
   const txn = await Transaction.findOne({ _id: id, userId }).lean();
   if (!txn) throw new HttpError(404, 'Transaction not found');
-  if (txn.status === 'confirmed') {
-    throw new HttpError(400, 'Confirmed transactions cannot be deleted here.');
-  }
-  // Safety net: a draft should never have moved a balance, but if it did, undo it.
+  // Reverse the per-bank balance effect of a confirmed (applied) transaction.
   if (txn.balanceApplied) await reverseBalanceForTransaction(userId, id);
-  await Transaction.deleteOne({ _id: id, userId, status: 'needs_review' });
+  // Keep any linked goal consistent: reverse a finalized contribution; a pending
+  // one (goalApplied=false) simply disappears from the activity log on delete.
+  if (txn.goalId && txn.goalApplied) await reverseGoalForTransaction(userId, id);
+  await Transaction.deleteOne({ _id: id, userId });
   return { deleted: true, id: String(id) };
 }
+
+// Back-compat alias: the route previously called deleteDraftTransaction.
+export const deleteDraftTransaction = deleteTransaction;
 
 /** Edit a transaction (e.g. re-categorize) — works for any of the user's rows. */
 export async function updateTransaction(userId, id, patch = {}) {

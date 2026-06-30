@@ -22,6 +22,14 @@ const transactionSchema = new Schema(
     accountId: { type: Schema.Types.ObjectId, ref: 'Account', index: true },
     accountName: { type: String, default: '' }, // denormalized for fast list rendering
 
+    // Goal funding link. When set, this transaction is a contribution toward a
+    // savings goal: it shows as a *pending* contribution while needs_review and
+    // finalizes onto goal.saved when confirmed (see goal.service.applyGoal*).
+    goalId: { type: Schema.Types.ObjectId, ref: 'Goal', default: null, index: true },
+    // Idempotency guard mirroring balanceApplied: whether this txn's amount has
+    // already been added to goal.saved (so confirm/reverse can't double count).
+    goalApplied: { type: Boolean, default: false },
+
     source: { type: String, enum: TX_SOURCES, required: true },
     direction: { type: String, enum: TX_DIRECTIONS, required: true },
     status: { type: String, enum: TX_STATUSES, default: 'confirmed', index: true },

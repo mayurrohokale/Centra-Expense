@@ -32,6 +32,8 @@ const createSchema = z.object({
   occurredAt: z.string().datetime().optional(),
   dateLabel: z.string().optional(),
   status: z.enum(['confirmed', 'needs_review']).optional(),
+  // Goal funding: links this contribution to a savings goal (draft until confirmed).
+  goalId: z.string().optional(),
 });
 
 export const POST = handle(async (req) => {
