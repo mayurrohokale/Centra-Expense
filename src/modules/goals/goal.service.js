@@ -49,13 +49,16 @@ export async function updateGoal(userId, id, patch) {
  * Goal funding accounting (mirrors balance.service's apply/reverse pattern).
  *
  * Money added to a goal is recorded as a DRAFT (needs_review) transaction on the
- * chosen bank/cash account (created in transaction.service). The goal's `saved`
- * total is the sum of CONFIRMED contributions only — pending drafts show in the
- * activity log but don't inflate the progress bar until confirmed. The txn's
- * `goalApplied` flag makes apply/reverse idempotent (no double counting).
+ * chosen bank/cash account (created in transaction.service). GOAL PROGRESS is
+ * decoupled from bank-balance timing: goal.saved is updated IMMEDIATELY when the
+ * contribution is created (so the progress bar moves on add), while the bank
+ * balance still only changes when the linked txn is confirmed. The activity log
+ * still surfaces each contribution's bank-side status (pending/confirmed). The
+ * txn's `goalApplied` flag makes apply/reverse idempotent (no double counting):
+ * apply runs once at creation; confirm is a no-op; delete reverses it.
  */
 
-/** Finalize a contribution onto goal.saved when its linked txn is confirmed. */
+/** Apply a contribution onto goal.saved. Idempotent via the txn's goalApplied flag. */
 export async function applyGoalForTransaction(userId, txnId) {
   const txn = await Transaction.findOne({ _id: txnId, userId });
   if (!txn || !txn.goalId || txn.goalApplied) return;

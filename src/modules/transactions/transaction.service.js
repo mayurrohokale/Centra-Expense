@@ -39,9 +39,11 @@ export async function confirmTransaction(userId, id, patch = {}) {
   // applyBalance is itself idempotent via the txn's balanceApplied flag.
   if (confirmed) {
     await applyBalanceForTransaction(userId, confirmed._id);
-    // If this is a goal-funding contribution, finalize it onto goal.saved now
-    // (idempotent via the txn's goalApplied flag). Until confirmed it only
-    // showed as a pending contribution in the goal's activity log.
+    // Goal contributions are already applied to goal.saved at CREATION time (the
+    // progress bar moves immediately on add — see createTransaction). This call
+    // is a no-op safety net: applyGoalForTransaction early-returns when
+    // goalApplied is already true, so confirm never double-adds. (Kept in case a
+    // goal-linked row ever reaches confirm without having been applied.)
     if (confirmed.goalId) await applyGoalForTransaction(userId, confirmed._id);
   }
   return confirmed;
@@ -58,9 +60,10 @@ export async function confirmTransaction(userId, id, patch = {}) {
  * next sync re-asserts the true value. Drafts never moved a balance, so the
  * reversal is a no-op for them (guarded by the balanceApplied flag).
  *
- * Goal funding: if the row is a goal contribution, undo its effect on the goal
- * too — a confirmed contribution had been added to goal.saved (goalApplied),
- * so reverse it; a pending one only lived in the activity log and just vanishes.
+ * Goal funding: if the row is a goal contribution, undo its effect on goal.saved
+ * too. Goal progress is applied at CREATION (decoupled from bank balance), so
+ * BOTH a pending draft and a confirmed contribution carry goalApplied=true —
+ * deleting either decrements goal.saved (progress bar drops back).
  *
  * Idempotent: reverse helpers clear balanceApplied / goalApplied, and the row
  * is then deleted so it can't be reversed twice.
@@ -70,8 +73,8 @@ export async function deleteTransaction(userId, id) {
   if (!txn) throw new HttpError(404, 'Transaction not found');
   // Reverse the per-bank balance effect of a confirmed (applied) transaction.
   if (txn.balanceApplied) await reverseBalanceForTransaction(userId, id);
-  // Keep any linked goal consistent: reverse a finalized contribution; a pending
-  // one (goalApplied=false) simply disappears from the activity log on delete.
+  // Reverse the goal contribution (applied at creation → goalApplied=true for
+  // both draft and confirmed), so deleting a contribution drops the progress bar.
   if (txn.goalId && txn.goalApplied) await reverseGoalForTransaction(userId, id);
   await Transaction.deleteOne({ _id: id, userId });
   return { deleted: true, id: String(id) };
@@ -150,7 +153,18 @@ export async function createTransaction(userId, data) {
   if (created.status === 'confirmed' && created.accountId) {
     await applyBalanceForTransaction(userId, created._id);
   }
-  return { transaction: created.toObject(), deduped: false };
+  // GOAL PROGRESS is decoupled from bank-balance timing: a goal contribution
+  // (any status, incl. a needs_review draft) is applied to goal.saved IMMEDIATELY
+  // on creation so the progress bar moves the moment money is added. The bank
+  // balance still only changes on confirm (above / confirmTransaction). The
+  // txn's `goalApplied` flag (set here by applyGoalForTransaction) makes the
+  // later confirm idempotent — it won't re-add — and a draft delete reverses it.
+  if (created.goalId) {
+    await applyGoalForTransaction(userId, created._id);
+  }
+  // Re-read so the returned object reflects goalApplied=true (and any updates).
+  const fresh = await Transaction.findById(created._id).lean();
+  return { transaction: fresh || created.toObject(), deduped: false };
 }
 
 /** Money in / out / net for the current month-style summary card. */

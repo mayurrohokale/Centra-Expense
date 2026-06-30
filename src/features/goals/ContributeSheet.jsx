@@ -63,8 +63,9 @@ export default function ContributeSheet({ open, onClose, goal, onSaved }) {
     setBusy(true);
     try {
       const occurredAt = new Date().toISOString();
-      // DRAFT debit linked to this goal. Does NOT move the bank balance or the
-      // goal total until confirmed (status needs_review + goalId linkage).
+      // DRAFT debit linked to this goal. The goal's saved total + progress bar
+      // update IMMEDIATELY (applied server-side at creation via goalId), while
+      // the BANK balance only moves once this draft is confirmed (needs_review).
       await api.createTransaction({
         accountId,
         goalId: goal._id,
@@ -104,7 +105,7 @@ export default function ContributeSheet({ open, onClose, goal, onSaved }) {
       {err && <div style={{ marginTop: 14, fontFamily: FONT.inter, fontWeight: 700, fontSize: 12, color: '#d6483b' }}>⚠️ {err}</div>}
       {done && !err && (
         <div style={{ marginTop: 14, borderRadius: 14, padding: '11px 14px', background: '#F2ECFC', border: '1.5px solid #e4d8fb', fontFamily: FONT.inter, fontWeight: 700, fontSize: 12, color: '#6C5CE7' }}>
-          ✓ Added as a pending contribution. Confirm it in Needs review to deduct from {acct?.name || 'your account'} and update this goal.
+          ✓ Added to your goal. Confirm it in Needs review to deduct ₹ from {acct?.name || 'your account'} (the bank balance updates on confirm).
         </div>
       )}
 
